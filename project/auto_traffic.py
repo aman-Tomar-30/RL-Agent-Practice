@@ -24,7 +24,7 @@ def fdb_refresh_loop(switch_name, interval=2):
                 capture_output=True, text=True
             )
 
-            entries = len(result.stdout.splitlines())
+            entries = len(result.stdout.splitlines()) - 1 #first row contains column headers
             print(f"[FDB] Entries={entries}")
 
             with open(fdb_file, "w") as f:
@@ -208,7 +208,6 @@ def topology():
 
     # ── Keep traffic alive — re-ping every 20s so MACs don't age out ──
     def keepalive(net):
-        import random
         all_hosts  = net.hosts
         g0_s1_host = net.get('g0_s1_h1')
         g0_s1_ip   = g0_s1_host.IP()
