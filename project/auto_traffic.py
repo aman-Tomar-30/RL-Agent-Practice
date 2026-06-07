@@ -1,19 +1,15 @@
-"""
-Run this AS the Mininet script, replacing dragonfly.py's CLI call.
-It starts the network, generates traffic, and keeps fdb fresh.
-"""
+#from mininet.topo import Topo
+#from mininet.net import Mininet
+#from mininet.node import Controller
+#import threading
+#import os
+#from mininet.log import setLogLevel
 
-from mininet.topo import Topo
-from mininet.net import Mininet
-from mininet.node import Controller
-from mininet.log import setLogLevel
 import time
 import subprocess
-import threading
-import os
 import random
 
-def fdb_refresh_loop(switch_name, interval=2):
+def fdb_refresh_loop(switch_name, interval=1):
     """Continuously dump fdb to file so RL agent can read it."""
     fdb_file = f"/tmp/fdb_{switch_name}.txt"
     print(f"[FDB] Refreshing {fdb_file} every {interval}s")
@@ -25,7 +21,7 @@ def fdb_refresh_loop(switch_name, interval=2):
             )
 
             entries = len(result.stdout.splitlines()) - 1 #first row contains column headers
-            print(f"[FDB] Entries={entries}")
+            print(f"[FDB REFRESH] Entries={entries}")
 
             with open(fdb_file, "w") as f:
                 f.write(result.stdout)
@@ -96,248 +92,62 @@ def generate_traffic(net, switch_name):
             print(f"  {host.name} → g0_s1_h1 ({g0_s1_ip})")
     print("[TRAFFIC] Aggressive pings started.\n")
 
+def mac_learning_storm(hosts):
+    print("[ATTACK] MAC learning storm")
+    for _ in range(100):
+        src = random.choice(hosts)
+        dst = random.choice(hosts)
+        if src == dst:
+            continue
+        if not dst.intfs: # it has no active interface
+            continue
+        src.cmd(
+            f"arping -c 1 -I {src.defaultIntf()} {dst.IP()} > /dev/null 2>&1 &"
+        )
 
-def topology():
-    net = Mininet(controller=None)
+# ── Keep traffic alive — re-ping every 20s so MACs don't age out ──
+def keepalive(net):
+    all_hosts  = net.hosts
+    g0_s1_host = net.get('g0_s1_h1')
+    g0_s1_ip   = g0_s1_host.IP()
+    #print(all_hosts)
+    cycle = 0
 
-    # ── Build topology (same as your dragonfly.py) ──
-    g0_s0 = net.addSwitch('g0_s0')
-    g0_s1 = net.addSwitch('g0_s1')
-    g1_s0 = net.addSwitch('g1_s0')
-    g1_s1 = net.addSwitch('g1_s1')
-    g2_s0 = net.addSwitch('g2_s0')
-    g2_s1 = net.addSwitch('g2_s1')
+    while True:
+        cycle += 1
 
-    #Switch connection
-    net.addLink(g0_s0, g0_s1) 
-    net.addLink(g1_s0, g1_s1) 
-    net.addLink(g2_s0, g2_s1) 
-    net.addLink(g0_s0, g1_s0) 
-    net.addLink(g1_s0, g2_s0) 
-    net.addLink(g0_s0, g2_s0)
+        # ── 3s: minimal keepalive (light ping refresh) ──
+        for host in random.sample(all_hosts, 1): #one random host ping g0_s1_h1
+            if host.name != 'g0_s1_h1':
+                host.cmd(f"ping -i 0.5 {g0_s1_ip} > /dev/null 2>&1 &")
 
-    # Group 0
-    g0_s0_h1 = net.addHost('g0_s0_h1', mac='00:00:00:00:00:01')
-    #g0_s0_h2 = net.addHost('g0_s0_h2')
-    #g0_s0_h3 = net.addHost('g0_s0_h3')
-
-    g0_s1_h1 = net.addHost('g0_s1_h1', mac='00:00:00:00:00:02')
-    #g0_s1_h2 = net.addHost('g0_s1_h2')
-    #g0_s1_h3 = net.addHost('g0_s1_h3')
-
-    # Group 1
-    g1_s0_h1 = net.addHost('g1_s0_h1', mac='00:00:00:00:00:03')
-    #g1_s0_h2 = net.addHost('g1_s0_h2')
-    #g1_s0_h3 = net.addHost('g1_s0_h3')
-
-    g1_s1_h1 = net.addHost('g1_s1_h1', mac='00:00:00:00:00:04')
-    #g1_s1_h2 = net.addHost('g1_s1_h2')
-    #g1_s1_h3 = net.addHost('g1_s1_h3')
-
-    # Group 2
-    g2_s0_h1 = net.addHost('g2_s0_h1', mac='00:00:00:00:00:05')
-    #g2_s0_h2 = net.addHost('g2_s0_h2')
-    #g2_s0_h3 = net.addHost('g2_s0_h3')
-
-    g2_s1_h1 = net.addHost('g2_s1_h1', mac='00:00:00:00:00:06')
-    #g2_s1_h2 = net.addHost('g2_s1_h2')
-    #g2_s1_h3 = net.addHost('g2_s1_h3')
-
-    # g0_s0
-    net.addLink(g0_s0_h1, g0_s0)
-    #net.addLink(g0_s0_h2, g0_s0)
-    #net.addLink(g0_s0_h3, g0_s0)
-
-    # g0_s1
-    net.addLink(g0_s1_h1, g0_s1)
-    #net.addLink(g0_s1_h2, g0_s1)
-    #net.addLink(g0_s1_h3, g0_s1)
-
-    # g1_s0
-    net.addLink(g1_s0_h1, g1_s0)
-    #net.addLink(g1_s0_h2, g1_s0)
-    #net.addLink(g1_s0_h3, g1_s0)
-
-    # g1_s1
-    net.addLink(g1_s1_h1, g1_s1)
-    #net.addLink(g1_s1_h2, g1_s1)
-    #net.addLink(g1_s1_h3, g1_s1)
-
-    # g2_s0
-    net.addLink(g2_s0_h1, g2_s0)
-    #net.addLink(g2_s0_h2, g2_s0)
-    #net.addLink(g2_s0_h3, g2_s0)
-
-    # g2_s1
-    net.addLink(g2_s1_h1, g2_s1)
-    #net.addLink(g2_s1_h2, g2_s1)
-    #net.addLink(g2_s1_h3, g2_s1)
-
-    net.start()
-
-    print("\n[!] Configuring switches...")
-    for sw in [g0_s0, g0_s1, g1_s0, g1_s1, g2_s0, g2_s1]:
-        sw.cmd(f'ovs-vsctl set-fail-mode {sw.name} standalone')
-        sw.cmd(f'ovs-vsctl set Bridge {sw.name} stp_enable=true')
-
-    print("\n[!] Waiting 30s for STP to converge...")
-    time.sleep(30)
-    print("[OK] Network ready.\n")
-
-    # ── Start fdb refresh thread for g0_s1 ──
-    t = threading.Thread(target=fdb_refresh_loop, args=('g0_s1', 1), daemon=True)
-    t.start()
-
-    # ── Generate traffic ──
-    generate_traffic(net, 'g0_s1')
-
-    def mac_learning_storm(hosts):
-        print("[ATTACK] MAC learning storm")
-
-        for _ in range(300):
-
-            src = random.choice(hosts)
-            dst = random.choice(hosts)
-
-            if src == dst:
-                continue
-
-            src.cmd(
-                f"arping -c 1 -I {src.defaultIntf()} {dst.IP()} > /dev/null 2>&1 &"
-            )
-
-    # ── Keep traffic alive — re-ping every 20s so MACs don't age out ──
-    def keepalive(net):
-        all_hosts  = net.hosts
-        g0_s1_host = net.get('g0_s1_h1')
-        g0_s1_ip   = g0_s1_host.IP()
-
-        while True:
-            if random.random() < 0.2:
-                 mac_learning_storm(all_hosts)
-            
-            #if random.random() < 0.05:
-            #    print("[CHAOS] Traffic blackout")
-
-            #   for host in all_hosts:
-            #        host.cmd("pkill -f ping 2>/dev/null")
-
-            #   time.sleep(random.randint(2,4))
-
-            time.sleep(3)
-
+        # ── 20s: full traffic reshuffle ──
+        if cycle % 7 == 0:   # ~21s if sleep=3
             print("[KEEPALIVE] Reshuffling traffic...")
 
-            victims = random.sample(
-                    all_hosts,
-                    1
-                )
-
-            for host in victims:
-                host.cmd("pkill -f ping 2>/dev/null")
-            time.sleep(1)
+            host = random.choice(all_hosts)
+            host.cmd("pkill -f ping 2>/dev/null") #Stop one host's current ping traffic so a different traffic flow can be started
 
             pairs = [(s, d) for i, s in enumerate(all_hosts)
-                             for j, d in enumerate(all_hosts) if i < j]
-            k      = random.randint(max(1, len(pairs) // 3), len(pairs))
-            active = random.sample(pairs, k)
+                             for j, d in enumerate(all_hosts) if i < j] #handle self-pairing and duplicates
+
+            k = random.randint(max(1, len(pairs)//5), len(pairs)) #20% pairs will be activate
+            active = random.sample(pairs, k) #create list of that random 20% pairs
+            #print(active)
 
             for src, dst in active:
-                interval = random.choice([
-                    0.01,
-                    0.05,
-                    0.1,
-                    0.2,
-                    0.5,
-                    1.0,
-                    2.0
-                ])
-                src.cmd(f"ping -i {interval} {dst.IP()} > /dev/null 2>&1 &")
-
-            # Force re-learning and broadcast traffic
-            for src in all_hosts:
-                for dst in random.sample(all_hosts, min(3, len(all_hosts))):
-
-                    if src == dst:
+                interval = random.choice([0.1, 0.2, 0.5, 1.0])
+                if not dst.intfs:
                         continue
-
-                    src.cmd(
-                        f"arping -c 2 -I {src.defaultIntf()} {dst.IP()} > /dev/null 2>&1 &"
-                    )
-
-            # Always keep aggressive pings to g0_s1_h1 alive regardless of reshuffle
-            for host in all_hosts:
-                if host.name != 'g0_s1_h1':
-                    interval = random.choice([
-                        0.01,
-                        0.02,
-                        0.05,
-                        0.1,
-                        0.2
-                    ])
-
-                    host.cmd(f"ping -i {interval} {g0_s1_ip} > /dev/null 2>&1 &")
-
+                src.cmd(f"ping -i {interval} {dst.IP()} > /dev/null 2>&1 &") #supress errors
+            
             print(f"[KEEPALIVE] {k}/{len(pairs)} pairs active + all hosts pinging g0_s1_h1")
 
+        # ── optional ARP storm (less frequent) ──
+        if cycle % 20 == 0:
+            mac_learning_storm(all_hosts)
 
-    ka = threading.Thread(target=keepalive, args=(net,), daemon=True)
-    ka.start()
-    
-    print("=" * 50)
-    print("  Network + traffic running.")
-    print("  Now run RL agent in another terminal:")
-    print("  sudo ./venv/bin/python rl/main.py")
-    print("=" * 50 + "\n")
-
-    def show_fdb(net):
-
-        while True:
-            try:
-                result = subprocess.run(
-                    ["ovs-appctl", "fdb/show", "g0_s1"],
-                    capture_output=True,
-                    text=True
-                )
-
-                lines = result.stdout.splitlines()
-
-                entries = []
-
-                for line in lines:
-                    parts = line.split()
-
-                    if len(parts) >= 3:
-                        entries.append(parts)
-
-                print(
-                    f"\n[FDB STATUS] "
-                    f"Entries={len(entries)}"
-                )
-
-            except Exception as e:
-                print(e)
-
-            time.sleep(5)
+        time.sleep(3)
 
 
-    fdb_thread = threading.Thread(
-            target=show_fdb,
-            args=(net,),
-            daemon=True
-        )
-    
-    fdb_thread.start()
-
-    # Keep alive until Ctrl+C
-    try:
-        while True:
-            time.sleep(5)
-            # Show live fdb state every 30s
-    except KeyboardInterrupt:
-        print("\n[STOP] Shutting down...")
-        net.stop()
-
-if __name__ == '__main__':
-    setLogLevel('info')
-    topology()
+       

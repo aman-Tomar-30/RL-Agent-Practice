@@ -1,28 +1,36 @@
 from project.monitor import get_mac_table_entries
 import time
-while True:
-    entries = get_mac_table_entries("g0_s1")
 
-    print("\033c")
+try:
+    while True:
+        entries = get_mac_table_entries("g0_s1")
 
-    print("RL MAC TABLE VIEW")
-    print("-" * 70)
+        print("\033c") #reset terminal everysecond 
+        print("RL MAC TABLE VIEW")
+        print("-" * 70)
 
-    print(f"Entries : {len(entries)}")
+        if not entries:
+            print("Entries : 0")
+            time.sleep(1)
+            continue
 
-    oldest = max(entries, key=lambda x: x["age"]) if entries else None
+        print(f"Entries : {len(entries)}")
 
-    for e in entries:
-        marker = ""
+        oldest = max(entries, key=lambda x: int(x.get("age", 0)))
 
-        if oldest and e["mac"] == oldest["mac"]:
-            marker = " <-- WILL BE EVICTED"
+        for e in entries:
+            marker = ""
+            if e.get("mac") == oldest.get("mac"):
+                marker = " <-- WILL BE EVICTED"
 
-        print(
-            f"Port {e['port']} | "
-            f"{e['mac']} | "
-            f"Age {e['age']}s"
-            f"{marker}"
-        )
+            print(
+                f"Port {e.get('port')} | "
+                f"{e.get('mac')} | "
+                f"Age {e.get('age')}s"
+                f"{marker}"
+            )
 
-    time.sleep(1)
+        time.sleep(1)
+
+except KeyboardInterrupt:
+    print("\nStopped cleanly.")
