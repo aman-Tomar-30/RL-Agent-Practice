@@ -5,7 +5,9 @@ from project.rl.env import LiveEnv
 from project.rl.states import LiveStateEncoder
 from project.rl.agent import QAgent
 
-def run_live_training(switch='g0_s0', episodes=100, steps_per_ep=50):
+def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
+    # ep = 200
+    # steps = 30
     
     env     = LiveEnv(switch=switch)
     encoder = LiveStateEncoder(bins=8)
@@ -16,6 +18,8 @@ def run_live_training(switch='g0_s0', episodes=100, steps_per_ep=50):
 
     qtable_path = 'project/results/qtable/q_table.csv'
     os.makedirs('project/results/qtable', exist_ok=True)
+
+    episode_log_path = 'project/results/logs/episode_log.csv'
 
     with open(log_path, 'w', newline='') as f:
         writer = csv.writer(f)      
@@ -75,11 +79,17 @@ def run_live_training(switch='g0_s0', episodes=100, steps_per_ep=50):
             'Q_DEC_AGE'])
 
     rewards_history = []
+    
+    # G
+    with open(episode_log_path, 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerow(['Episode', 'Discounted_G', 'Total_Reward', 'Epsilon'])
 
     for ep in range(episodes):
         state_info   = env.get_live_state()
         state_idx    = encoder.get_state_index(state_info)
         total_reward = 0
+        episode_rewards = []
 
         for step in range(steps_per_ep):
             is_random, action             = agent.choose_action_with_flag(state_idx)
@@ -96,6 +106,7 @@ def run_live_training(switch='g0_s0', episodes=100, steps_per_ep=50):
             state_idx    = next_state_idx
             state_info   = next_state_info
             total_reward += reward
+            episode_rewards.append(reward) #for discounted reward
 
             # LOG every step
             with open(log_path, 'a', newline='') as f:
@@ -167,6 +178,16 @@ def run_live_training(switch='g0_s0', episodes=100, steps_per_ep=50):
                 f"Reward: {reward:+.2f} | "
                 f"ε: {agent.epsilon:.3f}"
             )
+
+        G = 0
+        for r in reversed(episode_rewards):
+            G = r + agent.gamma * G
+            
+        print(f"Ep {ep+1} | Discounted Return G: {G:.4f}")
+
+        with open(episode_log_path, 'a', newline='') as f:
+            writer = csv.writer(f)
+            writer.writerow([ep + 1, round(G, 4), round(total_reward, 4), round(agent.epsilon, 4)])
 
         agent.decay_epsilon()
         rewards_history.append(total_reward)

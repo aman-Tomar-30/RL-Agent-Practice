@@ -9,6 +9,24 @@ This script:
 1. Collects live state from OVS (MAC entries, flood pressure, entry age)
 2. Executes actions on OVS switches (block/unblock port, aging, evict, flood)
 """
+#          ┌──────────────┐
+#          │   NETWORK    │
+#          └──────┬───────┘
+#                 ↓
+#        OBSERVATION LAYER
+#    (MAC, flood, aging, traffic)
+#                 ↓
+#        STATE REPRESENTATION
+#    (normalized RL state vector)
+#                 ↓
+#       RL AGENT (not shown here)
+#                 ↓
+#           ACTION EXECUTION
+#  (block, flood, evict, aging)
+#                 ↓
+#          ┌──────┴───────┐
+#          │   NETWORK    │
+#          └──────────────┘
 
 # =========================
 # CONFIGURATION
@@ -39,7 +57,7 @@ def run_cmd(cmd):
     return result.strip()
 
 # =========================================================
-# 1. MAC TABLE ENTRIES
+# 1. MAC TABLE ENTRIES : all MAC table entries from a switch sw
 # =========================================================
 
 def get_mac_table_entries(sw):
@@ -47,13 +65,22 @@ def get_mac_table_entries(sw):
         fdb_file = f"/tmp/fdb_{sw}.txt"
         with open(fdb_file, "r") as f:
             lines = f.read().splitlines()
+        # eg
+        # lines = [
+        #        "1 10 aa:bb:cc:dd:ee:ff 30",
+        #       "2 20 ff:ee:dd:cc:bb:aa 12"
+        # ]
 
 
         entries = []
+    #   will store like this      [
+    #   {"port": 1, "vlan": 10, "mac": "...", "age": 30},
+    #   ...
+    # ]
         for line in lines:
             if not line.strip() or "port" in line.lower() or "VLAN" in line:
                 continue
-            parts = line.split()
+            parts = line.split() #eg parts = ["1", "10", "aa:bb:cc:dd:ee:ff", "30"]
             if len(parts) >= 3:
                 entries.append({
                     "port": int(parts[0]),
@@ -70,6 +97,9 @@ def get_mac_table_entries(sw):
 
 # =========================================================
 # 2. FLOOD PRESSURE  (dump-ports based — measures real traffic)
+# normal traffic → uneven ports
+# flooding → symmetric spike on ports
+
 # =========================================================
 
 def get_flood_pressure(sw):
@@ -152,7 +182,7 @@ def get_flood_pressure(sw):
 # =========================================================
 
 def calculate_entry_age(mac_entries):
-    if not mac_entries:
+    if not mac_entries: # empty mac_entries list
         return 0
     return max(entry["age"] for entry in mac_entries)
 
