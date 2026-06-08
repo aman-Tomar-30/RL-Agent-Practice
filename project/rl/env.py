@@ -19,6 +19,12 @@ from project.monitor import (
 from project.rl.reward import get_reward
 from project.rl.actions import ActionSpace
 
+"""
+    Reads live network state
+    Applies RL actions safely (with guards)
+    omputes reward + next state transition
+"""
+
 class LiveEnv:
     def __init__(self, switch=None):
 
@@ -123,7 +129,7 @@ class LiveEnv:
 
         evicted_mac = execute_action(self.switch, executed_action, port=port_acted)
 
-        if executed_action == 1:
+        if executed_action == 1: # evict
             time.sleep(4)
         else:
             time.sleep(1)

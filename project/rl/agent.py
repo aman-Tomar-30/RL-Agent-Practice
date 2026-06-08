@@ -4,16 +4,22 @@ from project.rl.actions import ActionSpace
 
 class QAgent:
     def __init__(self, states, actions=7, alpha=0.1, gamma=0.99):
-        self.q_table = np.zeros((states, actions))
+
+        # alpha = 0.1
+        # gamma = 0.99
+ 
         self.alpha, self.gamma = alpha, gamma
         self.epsilon = 1.0
         self.epsilon_min   = 0.01
         self.epsilon_decay = 0.985
 
-    def choose_action(self, state):
+        # fill table with 0 
+        self.q_table = np.zeros((states, actions))
+
+    def choose_action_with_flag(self, state):
         if random.uniform(0, 1) < self.epsilon:
-            return random.randint(0, 6)         # 7 actions now
-        return np.argmax(self.q_table[state])
+            return True, random.randint(0, 6)    # is_random=True
+        return False, np.argmax(self.q_table[state])  # is_random=False
 
     def update(self, s, a, r, s_next):
         old_val  = self.q_table[s, a]
@@ -31,8 +37,3 @@ class QAgent:
 
     def get_action_name(self, action_idx):
         return ActionSpace.get_action_name(action_idx)
-    
-    def choose_action_with_flag(self, state):
-        if random.uniform(0, 1) < self.epsilon:
-            return True, random.randint(0, 6)    # is_random=True
-        return False, np.argmax(self.q_table[state])  # is_random=False
