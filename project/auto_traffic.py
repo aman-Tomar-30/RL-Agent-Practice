@@ -29,6 +29,7 @@ def fdb_refresh_loop(switch_name, interval=1):
             print(f"[FDB ERROR] {e}")
         time.sleep(interval)
 
+
 def generate_traffic(net, switch_name):
     """
     Find all hosts connected to the target switch and ping between them.
@@ -91,6 +92,7 @@ def generate_traffic(net, switch_name):
             host.cmd(f"ping -i 0.2 {g0_s1_ip} > /dev/null 2>&1 &")
             print(f"  {host.name} → g0_s1_h1 ({g0_s1_ip})")
     print("[TRAFFIC] Aggressive pings started.\n")
+
 
 def mac_learning_storm(hosts):
     print("[ATTACK] MAC learning storm")
