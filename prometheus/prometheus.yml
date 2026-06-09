@@ -11,9 +11,9 @@ scrape_configs:
 
     static_configs:
       - targets:
-          - host.docker.internal:8001
+          - episode_exporter:8001
     
   - job_name: "steps_exporter"
     static_configs:
       - targets:
-          - host.docker.internal:8002
+          - steps_exporter:8002
