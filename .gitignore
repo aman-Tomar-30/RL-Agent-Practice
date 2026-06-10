@@ -1,5 +1,8 @@
 __pycache__/
 *.pyc
 
+project/__pycache__/
+project/.venv/
+
 prometheus-2.55.1.linux-amd64/
 prometheus-2.55.1.linux-amd64.tar.gz

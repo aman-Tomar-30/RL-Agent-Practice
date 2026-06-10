@@ -4,7 +4,7 @@ setLogLevel('info')
 
 from dragonfly import topology
 # from mininet.cli import CLI #import during CLI testing
-from auto_traffic import keepalive, fdb_refresh_loop, generate_traffic, keepalive
+from auto_traffic import keepalive, fdb_refresh_loop
 import time
 import threading
 
@@ -34,7 +34,7 @@ try:
     fbd_refresh_thread.start()
 
     # ── Generate traffic ──
-    generate_traffic(net, 'g0_s1')
+    #generate_traffic(net, 'g0_s1')
 
     ka_thread = threading.Thread(target=keepalive, 
                                  args=(net,), 
