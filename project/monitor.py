@@ -53,8 +53,18 @@ AGING_DEFAULT    = 300
 _prev_port_packets = {}
 
 def run_cmd(cmd):
-    result = subprocess.check_output(cmd, shell=True, text=True)
-    return result.strip()
+    try:
+        result = subprocess.check_output(cmd, shell=True, text=True)
+        return result.strip()
+
+    except subprocess.CalledProcessError as e:
+        print("\n[WARN] Command failed")
+        print("CMD:", e.cmd)
+        print("Return code:", e.returncode)
+        print("STDERR:", e.stderr)
+
+        # IMPORTANT: don't crash RL training
+        return None
 
 # =========================================================
 # 1. MAC TABLE ENTRIES : all MAC table entries from a switch sw

@@ -33,9 +33,7 @@ try:
                                           daemon=True)
     fbd_refresh_thread.start()
 
-    # ── Generate traffic ──
-    #generate_traffic(net, 'g0_s1')
-
+    # ── Generate traffic Thread ──
     ka_thread = threading.Thread(target=keepalive, 
                                  args=(net,), 
                                  daemon=True)

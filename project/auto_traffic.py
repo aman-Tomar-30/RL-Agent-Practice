@@ -163,11 +163,7 @@ def start_burst(net):
             180
         )
 
-        src.cmd(
-            f"timeout {duration} "
-            f"ping -i 0.5 {dst.IP()} "
-            f"> /dev/null 2>&1 &"
-        )
+        src.cmd(f"timeout {duration} ping -i 0.5 {dst.IP()} > /dev/null 2>&1 &")
 
     print(f"[BURST] {num_flows} flows started")
 
