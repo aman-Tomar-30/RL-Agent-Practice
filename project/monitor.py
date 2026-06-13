@@ -2,6 +2,9 @@ import subprocess
 import time
 import re
 import csv as csv_module
+import os
+import random
+
 from project.generate_csv import get_output_csv
 
 """
@@ -51,6 +54,7 @@ AGING_DEFAULT    = 300
 # =========================
 
 _prev_port_packets = {}
+blocked_ports = set()
 
 def run_cmd(cmd):
     result = subprocess.check_output(cmd, shell=True, text=True)
@@ -146,7 +150,7 @@ def get_flood_pressure(sw):
 
         # Only look at operational ports 1 and 2
         deltas = []
-        for port in ["1", "2"]:
+        for port in [p for p in current_packets if p != "LOCAL"]:
             if port in current_packets and port in prev_packets:
                 deltas.append(max(0, current_packets[port] - prev_packets[port]))
 
@@ -199,15 +203,62 @@ def normalize(value, max_value):
 # 5. PORT HELPER
 # =========================================================
 
-def get_flood_port(mac_entries):
-    """Returns port with most MAC entries — most likely flooding source"""
-    port_counts = {}
-    for entry in mac_entries:
-        p = entry["port"]
-        port_counts[p] = port_counts.get(p, 0) + 1
-    if not port_counts:
+_prev_port_packets = {}
+
+def get_flood_port(sw, blockable_ports):
+    global _prev_port_packets
+
+    try:
+        result = subprocess.run(
+            ["ovs-ofctl", "dump-ports", sw],
+            capture_output=True,
+            text=True,
+            check=True
+        )
+
+        current = {}
+        port    = None
+
+        for line in result.stdout.splitlines():
+            line = line.strip()
+
+            if line.startswith("port "):
+                raw = line.split()[1].replace(":", "")
+                try:
+                    port = int(raw)
+                except ValueError:
+                    port = None
+                    continue
+
+                if port not in blockable_ports:
+                    port = None
+                    continue
+
+            elif "rx pkts=" in line and port is not None:
+                rx = int(line.split("rx pkts=")[1].split(",")[0])
+                current[port] = rx
+
+        max_growth = 0
+        flood_port = None
+
+        for p, rx in current.items():
+            prev   = _prev_port_packets.get(p, rx)
+            growth = rx - prev
+
+            if growth > max_growth:
+                max_growth = growth
+                flood_port = p
+
+        _prev_port_packets = current
+
+        if max_growth < 5:
+            return None
+
+        return flood_port
+
+    except Exception as e:
+        print(f"[ERROR] get_flood_port: {e}")
         return None
-    return max(port_counts, key=port_counts.get)
 
 def get_all_ports(sw):
     """Returns list of all port names on the switch"""
@@ -219,7 +270,23 @@ def get_all_ports(sw):
         return []
 
 # =========================================================
-# 6. ACTION EXECUTION
+# 6. TOPLOGY INFO
+# =========================================================
+
+import os
+import json
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+file_path = os.path.join(BASE_DIR,"rl","topology_info.json")
+
+with open(file_path, "r") as f:
+    topology = json.load(f)
+
+
+
+# =========================================================
+# 7. ACTION EXECUTION
 # =========================================================
 
 def action_learn_mac(sw):
@@ -236,7 +303,15 @@ def action_evict_entry(sw):
             print(f"  [ACTION] EVICT_ENTRY — table already empty, nothing to evict on {sw}")
             return None
 
-        stalest    = max(mac_entries, key=lambda e: e["age"])
+
+        MIN_EVICT_AGE = 10
+
+        eligible = [e for e in mac_entries if e["age"] >= MIN_EVICT_AGE]
+        if not eligible:
+            print(f"  [ACTION] EVICT_ENTRY — no entries older than {MIN_EVICT_AGE}s, skipping")
+            return None
+
+        stalest    = max(eligible, key=lambda e: e["age"])
         stale_mac  = stalest["mac"]
         stale_port = stalest["port"]
         stale_age  = stalest["age"]
@@ -267,8 +342,14 @@ def action_flood(sw):
 
 def action_block_port(sw, port):
     """Bring a port administratively down to stop traffic"""
+    uplink_ports = topology["uplink_ports"]
+
+    if port in uplink_ports:
+        print(f"[SKIP] Cannot block uplink port {port}")
+        return
     try:
         run_cmd(f"ovs-ofctl mod-port {sw} {port} down")
+        blocked_ports.add(port)
         print(f"  [ACTION] BLOCK_PORT — blocked port {port} on {sw}")
     except Exception as e:
         print(f"  [ERROR] BLOCK_PORT failed on port {port}: {e}")
@@ -277,6 +358,7 @@ def action_unblock_port(sw, port):
     """Bring a port back up"""
     try:
         run_cmd(f"ovs-ofctl mod-port {sw} {port} up")
+        blocked_ports.discard(port)
         print(f"  [ACTION] UNBLOCK_PORT — unblocked port {port} on {sw}")
     except Exception as e:
         print(f"  [ERROR] UNBLOCK_PORT failed on port {port}: {e}")
@@ -298,24 +380,50 @@ def action_decrease_aging(sw):
         print(f"  [ERROR] DECREASE_AGING failed: {e}")
 
 def execute_action(sw, action_idx, port=None):
+
+
+    if not topology:
+        print("[ERROR] Topology information not initialized")
+        return None
+    
+    blockable_ports = topology["blockable_ports"]
+    uplink_ports = topology["uplink_ports"]
+    all_ports = topology["all_ports"]   
+
     evicted_mac = None
 
-    if action_idx == 0:
+    if action_idx == 0: #learn mac
         action_learn_mac(sw)
-    elif action_idx == 1:
+
+    elif action_idx == 1: #evict
         evicted_mac = action_evict_entry(sw)
-    elif action_idx == 2:
+
+    elif action_idx == 2: #flood
         action_flood(sw)
-    elif action_idx == 3:
-        if port:
+
+    elif action_idx == 3: #block
+        if port is None:
+            print(f"  [SKIP] BLOCK_PORT — no port provided")
+        available = [
+            p for p in blockable_ports
+            if p not in blocked_ports
+        ]
+        
+        if available:
+            
+            port = random.choice(available)
             action_block_port(sw, port)
         else:
             print(f"  [SKIP] BLOCK_PORT — no flooding port detected on {sw}")
-    elif action_idx == 4:
-        if port:
+
+    elif action_idx == 4: #unblock
+        if blocked_ports:
+            port = random.choice(list(blocked_ports))
             action_unblock_port(sw, port)
         else:
             print(f"  [SKIP] UNBLOCK_PORT — no blocked port to release on {sw}")
+
+
     elif action_idx == 5:
         action_increase_aging(sw)
     elif action_idx == 6:

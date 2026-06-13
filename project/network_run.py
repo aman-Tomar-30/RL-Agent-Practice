@@ -1,8 +1,10 @@
 from mininet.log import setLogLevel
-
+import json
+import os
 setLogLevel('info')
 
-from dragonfly import topology
+from dragonfly import topology, discover_switch_ports
+
 # from mininet.cli import CLI #import during CLI testing
 from auto_traffic import keepalive, fdb_refresh_loop, generate_traffic, keepalive
 import time
@@ -13,6 +15,33 @@ net = None
 try:
     net = topology()
     net.start()
+
+    # get info about all, blockable, uplink ports of a switch
+    info = discover_switch_ports(net, "g0_s1")
+
+    
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    SAVE_PATH = os.path.join(BASE_DIR, "rl", "topology_info.json")
+
+    os.makedirs(os.path.dirname(SAVE_PATH), exist_ok=True)
+
+    with open(SAVE_PATH, "w") as f:
+        json.dump(info, f, indent=4)
+    
+
+
+
+
+
+
+    # info = discover_switch_ports(net, "g0_s1")
+    # blockable_ports = info["blockable_ports"]
+    # uplink_ports = info["uplink_ports"]
+    # all_ports = info["all_ports"]
+    # print("\n===== PORT DISCOVERY =====")
+    # print(f"Blockable Ports : {blockable_ports}")
+    # print(f"Uplink Ports    : {uplink_ports}")
+    # print(f"All Ports       : {all_ports}")
 
     print("\n[!] Configuring switches...")
 

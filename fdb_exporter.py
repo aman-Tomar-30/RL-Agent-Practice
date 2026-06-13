@@ -42,8 +42,11 @@ def update():
             mac=mac
         ).set(age)
 
+        
+
 start_http_server(8000)
 
 while True:
     update()
+    print("executed")
     time.sleep(1)

@@ -49,6 +49,20 @@ class LiveEnv:
 
         self.port_blocked = {}
 
+        # load topology info
+        import os
+        import json
+
+        BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+        file_path = os.path.join(BASE_DIR, "topology_info.json")
+
+        with open(file_path, "r") as f:
+            topology = json.load(f)
+
+        self.blockable_ports = topology["blockable_ports"]
+        
+
     def get_live_state(self):
         mac_entries    = get_mac_table_entries(self.switch)
         mac_fill       = normalize(len(mac_entries),          MAX_MAC_CAPACITY)
@@ -70,6 +84,7 @@ class LiveEnv:
         port_acted  = None
         original_action = action          # pre-guard action
 
+
         # EVICT_ENTRY guard (Problem 2: Prevent loop when table nearly empty)
         if action == 1:
             if state_info["mac_fill"] < 0.3:
@@ -78,40 +93,44 @@ class LiveEnv:
 
         # BLOCK_PORT guard
         elif action == 3:
-            port = get_flood_port(mac_entries)
-            print(f"[BLOCK DEBUG] candidate_port={port}")
-            # 1. Check if a port was found
+            port = get_flood_port(self.switch, self.blockable_ports)
+
             if not port:
-                print("  [GUARD] BLOCK_PORT skipped — no flooding port detected, switching to LEARN_MAC")
+                print("[GUARD] No flood port found")
                 action = 0
-            
-            # 2. Guard: Protect port 1 (direct host port)
-            elif port == 1 or port == "1":
-                print("  [GUARD] BLOCK_PORT skipped — port 1 is the primary host port, switching to LEARN_MAC")
+                port = None
+
+            elif port not in self.blockable_ports:
+                print(f"[GUARD] Port {port} is not blockable")
                 action = 0
 
-            # Problem 1: Never block the uplink port (port 2)
-            elif port == 2 or port == "2":
-                print("  [GUARD] BLOCK_PORT skipped — port 2 is the uplink, blocking it isolates the switch")
-                action = 0
-                
-            # 3. Check if already blocked
             elif self.port_blocked.get(port, False):
-                print(f"  [GUARD] BLOCK_PORT skipped — port {port} already blocked, switching to LEARN_MAC")
+                print(f"[GUARD] Port {port} already blocked")
                 action = 0
-                
-            # 4. Guard: Prevent total isolation (Ensure at least 1 port stays open)
+
             else:
-                all_ports = list(set(entry['port'] for entry in mac_entries if 'port' in entry))
-                ports_that_would_remain = [p for p in all_ports if not self.port_blocked.get(p, False) and p != port]
                 
+
+                ports_that_would_remain = [
+                    p for p in self.blockable_ports
+                    if not self.port_blocked.get(p, False) 
+                    and p != port
+                ]
+
                 if len(ports_that_would_remain) == 0:
-                    print("  [GUARD] BLOCK_PORT skipped — would isolate switch completely, switching to LEARN_MAC")
+                    print(
+                        "[GUARD] BLOCK_PORT skipped — "
+                        "would isolate switch completely"
+                    )
                     action = 0
+
                 else:
                     self.port_blocked[port] = True
                     port_acted = port
-                    print(f"  [BLOCK] Port {port} marked as blocked on {self.switch}")
+                    print(
+                        f"[BLOCK] Port {port} marked as blocked "
+                        f"on {self.switch}"
+                    )
 
         # UNBLOCK_PORT guard
         elif action == 4:
@@ -190,3 +209,5 @@ class LiveEnv:
         }
 
         return next_state_info, reward, info
+    
+
