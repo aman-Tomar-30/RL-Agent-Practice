@@ -10,12 +10,13 @@ from project.monitor import (
     get_flood_pressure,
     calculate_entry_age,
     normalize,
-    execute_action,
     get_flood_port,
     MAX_MAC_CAPACITY,
     MAX_FLOOD_RATE,
     MAX_ENTRY_AGE
 )
+
+from project.action_definition import execute_action
 from project.rl.reward import get_reward
 from project.rl.actions import ActionSpace
 
