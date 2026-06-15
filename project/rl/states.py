@@ -7,7 +7,7 @@ class LiveStateEncoder:
         bin_index = int(value / self.interval) # 0.625/0.125 = 5.04 => 5
         # it truncates so bin 0 range [0.000 - 0.125) like this others
 
-
+# ####################
 
 
 
