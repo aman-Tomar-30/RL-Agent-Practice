@@ -1,10 +1,20 @@
 import subprocess
-from monitor import get_mac_table_entries
+import redis
+import json
 import time
 
+from project.get_data import (
+    get_mac_table,       
+)
 
-AGING_HIGH       = 600
-AGING_LOW        = 60
+r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+
+AGING_HIGH = 600
+AGING_LOW  = 60
+
+SUPPRESSED_KEY = "suppressed_macs"
+HASH_KEY = "mac_table"
+ZSET_KEY = "mac_age"
 
 def run_cmd(cmd):
     try:
@@ -15,89 +25,143 @@ def run_cmd(cmd):
         print("CMD:", e.cmd)
         print("Return code:", e.returncode)
         print("STDERR:", e.stderr)
-
-        # IMPORTANT: don't crash RL training
         return None
 
-def action_learn_mac(sw):
-    pass
+def get_suppressed_set():
+    return {m.lower() for m in r.smembers(SUPPRESSED_KEY)}
 
-def action_evict_entry(sw):
-    """Evict only the single stalest MAC entry. Does NOT flush the whole table."""
-    try:
-        mac_entries = get_mac_table_entries(sw)
+def _delete_from_redis(mac):
+    pipe = r.pipeline()
 
-        if not mac_entries:
-            print(f"  [ACTION] EVICT_ENTRY — table already empty, nothing to evict on {sw}")
-            return None
+    # remove from active state
+    pipe.hdel(HASH_KEY, mac)
+    pipe.zrem(ZSET_KEY, mac)
 
-        stalest    = max(mac_entries, key=lambda e: e["age"])
-        stale_mac  = stalest["mac"]
-        stale_port = stalest["port"]
-        stale_age  = stalest["age"]
+    # suppress so it won't be re-imported from OVS
+    pipe.sadd(SUPPRESSED_KEY, mac)
 
-        print(f"  [ACTION] EVICT_ENTRY — evicting MAC {stale_mac} "
-              f"(port {stale_port}, age {stale_age}s) on {sw}")
-        
-        run_cmd(
-            f"ovs-ofctl add-flow {sw} "
-            f"priority=100,dl_src={stale_mac},actions=drop"
-        )
+    pipe.execute()
 
-        time.sleep(2)
-        run_cmd(f"ovs-ofctl del-flows {sw} dl_src={stale_mac}")
+    print(f"[EVICT] {mac} removed + suppressed")
 
-        print(f"  [ACTION] EVICT_ENTRY — MAC {stale_mac} evicted and rule cleared")
-        return stale_mac
+def sync_redis_from_ovs(sw):
+    mac_entries = get_mac_table(sw)
+    pipe = r.pipeline()
 
-    except Exception as e:
-        print(f"  [ERROR] EVICT_ENTRY failed: {e}")
+    # 🔥 snapshot (ONE TIME READ)
+    suppressed = get_suppressed_set()
+
+    filtered = {}
+
+    for mac, entry in mac_entries.items():
+
+        mac = mac.lower()   # normalize (IMPORTANT)
+
+        # ❌ DO NOT call is_suppressed()
+        if mac in suppressed:
+            continue
+
+        stored = r.hget(HASH_KEY, mac)
+
+        if stored:
+            stored_data = json.loads(stored)
+            entry["seen_count"] = stored_data.get("seen_count", 1)
+        else:
+            entry["seen_count"] = 1
+
+        filtered[mac] = entry
+
+        pipe.hset(HASH_KEY, mac, json.dumps(entry))
+        pipe.zadd(ZSET_KEY, {mac: entry["age"]})
+
+    pipe.execute()
+
+    return filtered
+
+def action_evict_entry(sw, flood_pressure):
+    mac_entries = sync_redis_from_ovs(sw)   # ← sync first so seen_count exists
+
+    if not mac_entries:
         return None
 
-def action_flood(sw):
-    # Secure mode so rule takes precedence; idle_timeout=10 auto-expires the rule
-    run_cmd(f"ovs-vsctl set-fail-mode {sw} secure")
-    run_cmd(f"sudo ovs-ofctl add-flow {sw} cookie=0xDEAD,priority=1,idle_timeout=10,actions=FLOOD")
-    print(f"  [ACTION] FLOOD — Temporary flooding rule added (10s idle timeout) on {sw}")
+    policy = "LFU" if flood_pressure > 0.6 else "LRU"
+    print(f"[EVICT] Policy={policy}, flood={flood_pressure:.3f}")
+
+    if policy == "LRU":
+        return init_lru_eviction(mac_entries)
+    else:
+        return init_lfu_eviction(mac_entries)
+
+def init_lru_eviction(mac_entries):
+    if not mac_entries:
+        return None, None
+    stale_mac, stale_entry = max(mac_entries.items(), key=lambda x: x[1].get("age", 0))
+    _delete_from_redis(stale_mac)
+    return stale_mac, stale_entry
+
+def init_lfu_eviction(mac_entries):
+    if not mac_entries:
+        return None, None
+    stale_mac, stale_entry = min(mac_entries.items(), key=lambda x: x[1].get("seen_count", 0))
+    _delete_from_redis(stale_mac)
+    return stale_mac, stale_entry
 
 def action_increase_aging(sw):
-    """Increase MAC aging timer — entries live longer"""
-    try:
-        run_cmd(f"ovs-vsctl set Bridge {sw} other_config:mac-aging-time={AGING_HIGH}")
-        print(f"  [ACTION] INCREASE_AGING — set aging to {AGING_HIGH}s on {sw}")
-    except Exception as e:
-        print(f"  [ERROR] INCREASE_AGING failed: {e}")
+    new_limit = AGING_HIGH
+    r.set("mac_aging_limit", new_limit)
+    run_cmd(f"ovs-vsctl set Bridge {sw} other-config:mac-aging-time={new_limit}")
+    print(f"[ACTION] INCREASE_AGING → set limit = {new_limit}")
+    return new_limit
 
 def action_decrease_aging(sw):
-    """Decrease MAC aging timer — entries expire faster, table stays fresher"""
-    try:
-        run_cmd(f"ovs-vsctl set Bridge {sw} other_config:mac-aging-time={AGING_LOW}")
-        print(f"  [ACTION] DECREASE_AGING — set aging to {AGING_LOW}s on {sw}")
-    except Exception as e:
-        print(f"  [ERROR] DECREASE_AGING failed: {e}")
+    new_limit = AGING_LOW
+    r.set("mac_aging_limit", new_limit)
+    run_cmd(f"ovs-vsctl set Bridge {sw} other-config:mac-aging-time={new_limit}")
+    print(f"[ACTION] DECREASE_AGING → set limit = {new_limit}")
+    return new_limit
 
-def execute_action(sw, action_idx, port=None):
+def calculate_importance(entry):
+    age = entry.get("age", 0)
+    seen_count = entry.get("seen_count", 1)
+    return seen_count + (age * 0.01)
+
+def action_rebalance_table(sw, target_size=10):   # ← sw param added
+    mac_entries = sync_redis_from_ovs(sw)          # ← read from OVS not Redis
+    current_entries = len(mac_entries)
+
+    if current_entries <= target_size:
+        print("[ACTION] REBALANCE — no cleanup needed")
+        return 0
+
+    remove_count = current_entries - target_size
+
+    scored = []
+    for mac, entry in mac_entries.items():
+        score = calculate_importance(entry)
+        scored.append((mac, score))
+
+    scored.sort(key=lambda x: x[1])   # least important first
+
+    removed = 0
+    for mac, _ in scored[:remove_count]:
+        _delete_from_redis(mac)        # ← delete from Redis
+        removed += 1
+
+    print(f"[ACTION] REBALANCE — removed {removed} entries")
+    return removed
+
+def execute_action(sw, action_idx, flood_pressure):
     evicted_mac = None
 
     if action_idx == 0:
-        action_learn_mac(sw)
+        evicted_mac = action_evict_entry(sw, flood_pressure)
     elif action_idx == 1:
-        evicted_mac = action_evict_entry(sw)
-    elif action_idx == 2:
-        action_flood(sw)
-    elif action_idx == 3:
-        if port:
-            action_block_port(sw, port)
-        else:
-            print(f"  [SKIP] BLOCK_PORT — no flooding port detected on {sw}")
-    elif action_idx == 4:
-        if port:
-            action_unblock_port(sw, port)
-        else:
-            print(f"  [SKIP] UNBLOCK_PORT — no blocked port to release on {sw}")
-    elif action_idx == 5:
         action_increase_aging(sw)
-    elif action_idx == 6:
+    elif action_idx == 2:
         action_decrease_aging(sw)
+    elif action_idx == 3:
+        action_rebalance_table(sw)     # ← pass sw
+    else:
+        print(f"[EXECUTE] Unknown action: {action_idx}")
 
     return evicted_mac

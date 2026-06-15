@@ -4,8 +4,6 @@ from project.rl.train import run_live_training
 # from project.rl.states import LiveStateEncoder
 
 if __name__ == "__main__":
-    # make sure dragonfly.py is already running in another terminal
-    # and Mininet topology is up before running this
 
     SWITCH   = 'g0_s1'
     EPISODES = 200
