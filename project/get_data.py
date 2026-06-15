@@ -3,12 +3,12 @@ import redis
 import json
 import time 
 import csv
+# stats
+import os
 
 r = redis.Redis(host='localhost', port=6379, decode_responses=True)
 #print(r.ping()) 
 
-# stats
-import os
 
 BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
 STATS_DIR = os.path.join(BASE_DIR, "network_stats")
