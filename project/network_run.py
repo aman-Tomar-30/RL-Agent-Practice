@@ -6,7 +6,7 @@ setLogLevel('info')
 
 from project.dragonfly import topology
 # from mininet.cli import CLI #import during CLI testing
-from project.auto_traffic import keepalive, fdb_refresh_loop
+from project.auto_traffic import keepalive
 import time
 import threading
 
@@ -28,12 +28,6 @@ try:
     print("\nNetwork Established ! Go ahead.\n")
 
     #CLI(net) #testing purpose
-
-    # ── Start fdb refresh thread for g0_s1 ──
-    fbd_refresh_thread = threading.Thread(target=fdb_refresh_loop, 
-                                          args=('g0_s1', 1), 
-                                          daemon=True)
-    fbd_refresh_thread.start()
 
     # ── Generate traffic Thread ──
     ka_thread = threading.Thread(target=keepalive, 

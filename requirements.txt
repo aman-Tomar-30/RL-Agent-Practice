@@ -1,2 +1,7 @@
-prometheus_client
+numpy
 pandas
+redis
+matplotlib
+seaborn
+prometheus_client
+mininet

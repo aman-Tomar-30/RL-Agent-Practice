@@ -4,6 +4,7 @@ sys.path.append(os.path.dirname(__file__))
 from project.rl.env import LiveEnv
 from project.rl.states import LiveStateEncoder
 from project.rl.agent import QAgent
+import numpy as np
 
 def save_final_qtable(agent, encoder, path='project/results/qtable/final_q_table.csv'):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -35,7 +36,9 @@ def save_final_qtable(agent, encoder, path='project/results/qtable/final_q_table
             age_bin   =  state_idx % bins
 
             q = agent.get_q_values(state_idx)
-            best_action = ['EVICT', 'INC_AGE', 'DEC_AGE', 'REBALANCE'][int(q.index(max(q)))]
+            #best_action = ['EVICT', 'INC_AGE', 'DEC_AGE', 'REBALANCE'][int(q.index(max(q)))]
+            actions = ['EVICT', 'INC_AGE', 'DEC_AGE', 'REBALANCE']
+            best_action = actions[int(np.argmax(q))]
 
             writer.writerow([
                 state_idx,

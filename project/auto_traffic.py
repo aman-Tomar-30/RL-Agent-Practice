@@ -10,33 +10,6 @@ import subprocess
 import random
 import threading
 
-def fdb_refresh_loop(switch_name, interval=1):
-    """
-    Continuously dump FDB for RL agent.
-    """
-    fdb_file = f"/tmp/fdb_{switch_name}.txt"
-
-    while True:
-        try:
-            result = subprocess.run(
-                ["ovs-appctl", "fdb/show", switch_name],
-                capture_output=True,
-                text=True
-            )
-
-            lines = result.stdout.splitlines()
-            entries = max(0, len(lines) - 1)
-
-            print(f"[FDB] Entries={entries}")
-
-            with open(fdb_file, "w") as f:
-                f.write(result.stdout)
-
-        except Exception as e:
-            print(f"[FDB ERROR] {e}")
-
-        time.sleep(interval)
-
 def bootstrap_learning(net):
     """
     One-time startup traffic so switch learns some MACs.

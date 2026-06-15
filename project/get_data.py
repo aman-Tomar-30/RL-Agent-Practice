@@ -19,8 +19,6 @@ STATS_DIR = os.path.join(BASE_DIR, "network_stats")
 os.makedirs(STATS_DIR, exist_ok=True)
 STAT_CSV  = os.path.join(STATS_DIR, "stat.csv")      
 
-STAT_CSV = os.path.join(STATS_DIR, "stat.csv")
-
         
 HASH_KEY = "mac_table"
 ZSET_KEY = "mac_age"
@@ -30,8 +28,7 @@ REJOIN_THRESHOLD = 3
 
 SWITCH = "g0_s1"
 DEFAULT_AGE = 300
-DEFAULT_SIZE = 10
-MAX_MAC_CAPACITY = 28
+MAX_MAC_CAPACITY = 10
 
 r.set("mac_aging_limit", DEFAULT_AGE)
 
@@ -161,9 +158,9 @@ def print_table():
         for mac, val in r.hgetall(HASH_KEY).items()
     }
 
-    fill = mac_fill(mac_entries)
+    fill = mac_fill()
     fpressure = flood_pressure(mac_entries)
-    agescore = get_ageScore(mac_entries)
+    agescore = get_ageScore()
 
     print(
             f"\nCurrent MAC Table, "
@@ -188,18 +185,20 @@ def print_table():
         if data:
             print(f"{data.get('port', ''):<10} {mac:<25} {data.get('age', 0):<10} {data.get('seen_count', 0):<10}")
 
-def get_ageScore(mac_entries):
-    if not mac_entries:
+def get_ageScore():
+    ages = r.zrange(ZSET_KEY, 0, -1, withscores=True)
+
+    if not ages:
         return 0.0
 
-    avg_age = sum(e["age"] for e in mac_entries.values()) / len(mac_entries)
-    
-    #When increase and decrease age works
-    current_timeout = int(r.get("mac_aging_limit"))
-    return normalize(avg_age, current_timeout)
+    avg_age = sum(score for _, score in ages) / len(ages)
 
-def mac_fill(mac_entries):
-    return normalize(len(mac_entries), MAX_MAC_CAPACITY)
+    limit = int(r.get("mac_aging_limit"))
+    return normalize(avg_age, limit)
+
+def mac_fill():
+    redis_count = r.hlen(HASH_KEY)
+    return normalize(redis_count, MAX_MAC_CAPACITY)
 
 def flood_pressure(new_entries, prev_entries=None):
     global previous_snapshot
@@ -228,15 +227,15 @@ def normalize(value, max_value):
     return round(min(value / max_value, 1.0), 4)
 
 def get_normalized_state(sw, prev_entries=None):
-    mac_entries = get_mac_table(sw)
+    mac_entries = {k: True for k in r.hkeys(HASH_KEY)}
 
     print(f"[DEBUG] sw={sw} redis_count={r.hlen(HASH_KEY)}")
 
-    mac_fill_val = normalize(len(mac_entries), MAX_MAC_CAPACITY)
+    mac_fill_val = mac_fill()
 
     flood_val    = flood_pressure(mac_entries, prev_entries)
 
-    age_val      = get_ageScore(mac_entries)
+    age_val      = get_ageScore()
 
     return mac_fill_val, flood_val, age_val, mac_entries 
 
