@@ -8,6 +8,7 @@ class LiveStateEncoder:
         # it truncates so bin 0 range [0.000 - 0.125) like this others
 
 
+
         # Handle value = 1.0 case 
         # if value = 1 then bin_index = 8 but our bins are from 0 to 7 so keep it in bin 7
         bin_value = min(bin_index, self.bins - 1)
