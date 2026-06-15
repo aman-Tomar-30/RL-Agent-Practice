@@ -2,34 +2,12 @@ import subprocess
 import time
 import re
 import csv as csv_module
-import os
-import random
-
 from project.generate_csv import get_output_csv
 
 """
 This script:
-1. Collects live state from OVS (MAC entries, flood pressure, entry age)
-2. Executes actions on OVS switches (block/unblock port, aging, evict, flood)
+Collects live state from OVS (MAC entries, flood pressure, entry age)
 """
-#          ┌──────────────┐
-#          │   NETWORK    │
-#          └──────┬───────┘
-#                 ↓
-#        OBSERVATION LAYER
-#    (MAC, flood, aging, traffic)
-#                 ↓
-#        STATE REPRESENTATION
-#    (normalized RL state vector)
-#                 ↓
-#       RL AGENT (not shown here)
-#                 ↓
-#           ACTION EXECUTION
-#  (block, flood, evict, aging)
-#                 ↓
-#          ┌──────┴───────┐
-#          │   NETWORK    │
-#          └──────────────┘
 
 # =========================
 # CONFIGURATION
@@ -45,8 +23,6 @@ MAX_MAC_CAPACITY = 24
 MAX_FLOOD_RATE   = 15
 MAX_ENTRY_AGE    = 300
 
-AGING_HIGH       = 600
-AGING_LOW        = 60
 AGING_DEFAULT    = 300
 
 # =========================
@@ -54,11 +30,20 @@ AGING_DEFAULT    = 300
 # =========================
 
 _prev_port_packets = {}
-blocked_ports = set()
 
 def run_cmd(cmd):
-    result = subprocess.check_output(cmd, shell=True, text=True)
-    return result.strip()
+    try:
+        result = subprocess.check_output(cmd, shell=True, text=True)
+        return result.strip()
+
+    except subprocess.CalledProcessError as e:
+        print("\n[WARN] Command failed")
+        print("CMD:", e.cmd)
+        print("Return code:", e.returncode)
+        print("STDERR:", e.stderr)
+
+        # IMPORTANT: don't crash RL training
+        return None
 
 # =========================================================
 # 1. MAC TABLE ENTRIES : all MAC table entries from a switch sw
@@ -69,18 +54,9 @@ def get_mac_table_entries(sw):
         fdb_file = f"/tmp/fdb_{sw}.txt"
         with open(fdb_file, "r") as f:
             lines = f.read().splitlines()
-        # eg
-        # lines = [
-        #        "1 10 aa:bb:cc:dd:ee:ff 30",
-        #       "2 20 ff:ee:dd:cc:bb:aa 12"
-        # ]
-
 
         entries = []
-    #   will store like this      [
-    #   {"port": 1, "vlan": 10, "mac": "...", "age": 30},
-    #   ...
-    # ]
+        
         for line in lines:
             if not line.strip() or "port" in line.lower() or "VLAN" in line:
                 continue
@@ -150,7 +126,7 @@ def get_flood_pressure(sw):
 
         # Only look at operational ports 1 and 2
         deltas = []
-        for port in [p for p in current_packets if p != "LOCAL"]:
+        for port in ["1", "2"]:
             if port in current_packets and port in prev_packets:
                 deltas.append(max(0, current_packets[port] - prev_packets[port]))
 
@@ -198,67 +174,19 @@ def normalize(value, max_value):
     if max_value == 0:
         return 0
     return round(min(value / max_value, 1.0), 4)
-
 # =========================================================
 # 5. PORT HELPER
 # =========================================================
 
-_prev_port_packets = {}
-
-def get_flood_port(sw, blockable_ports):
-    global _prev_port_packets
-
-    try:
-        result = subprocess.run(
-            ["ovs-ofctl", "dump-ports", sw],
-            capture_output=True,
-            text=True,
-            check=True
-        )
-
-        current = {}
-        port    = None
-
-        for line in result.stdout.splitlines():
-            line = line.strip()
-
-            if line.startswith("port "):
-                raw = line.split()[1].replace(":", "")
-                try:
-                    port = int(raw)
-                except ValueError:
-                    port = None
-                    continue
-
-                if port not in blockable_ports:
-                    port = None
-                    continue
-
-            elif "rx pkts=" in line and port is not None:
-                rx = int(line.split("rx pkts=")[1].split(",")[0])
-                current[port] = rx
-
-        max_growth = 0
-        flood_port = None
-
-        for p, rx in current.items():
-            prev   = _prev_port_packets.get(p, rx)
-            growth = rx - prev
-
-            if growth > max_growth:
-                max_growth = growth
-                flood_port = p
-
-        _prev_port_packets = current
-
-        if max_growth < 5:
-            return None
-
-        return flood_port
-
-    except Exception as e:
-        print(f"[ERROR] get_flood_port: {e}")
+def get_flood_port(mac_entries):
+    """Returns port with most MAC entries — most likely flooding source"""
+    port_counts = {}
+    for entry in mac_entries:
+        p = entry["port"]
+        port_counts[p] = port_counts.get(p, 0) + 1
+    if not port_counts:
         return None
+    return max(port_counts, key=port_counts.get)
 
 def get_all_ports(sw):
     """Returns list of all port names on the switch"""
@@ -268,168 +196,6 @@ def get_all_ports(sw):
     except Exception as e:
         print(f"[ERROR] get_all_ports failed: {e}")
         return []
-
-# =========================================================
-# 6. TOPLOGY INFO
-# =========================================================
-
-import os
-import json
-
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-
-file_path = os.path.join(BASE_DIR,"rl","topology_info.json")
-
-with open(file_path, "r") as f:
-    topology = json.load(f)
-
-
-
-# =========================================================
-# 7. ACTION EXECUTION
-# =========================================================
-
-def action_learn_mac(sw):
-    run_cmd(f"sudo ovs-ofctl del-flows {sw} cookie=0xDEAD/-1")
-    run_cmd(f"ovs-vsctl set-fail-mode {sw} standalone")
-    print(f"  [ACTION] LEARN_MAC — Removed flood rule + standalone mode on {sw}")
-
-def action_evict_entry(sw):
-    """Evict only the single stalest MAC entry. Does NOT flush the whole table."""
-    try:
-        mac_entries = get_mac_table_entries(sw)
-
-        if not mac_entries:
-            print(f"  [ACTION] EVICT_ENTRY — table already empty, nothing to evict on {sw}")
-            return None
-
-
-        MIN_EVICT_AGE = 10
-
-        eligible = [e for e in mac_entries if e["age"] >= MIN_EVICT_AGE]
-        if not eligible:
-            print(f"  [ACTION] EVICT_ENTRY — no entries older than {MIN_EVICT_AGE}s, skipping")
-            return None
-
-        stalest    = max(eligible, key=lambda e: e["age"])
-        stale_mac  = stalest["mac"]
-        stale_port = stalest["port"]
-        stale_age  = stalest["age"]
-
-        print(f"  [ACTION] EVICT_ENTRY — evicting MAC {stale_mac} "
-              f"(port {stale_port}, age {stale_age}s) on {sw}")
-
-        run_cmd(
-            f"ovs-ofctl add-flow {sw} "
-            f"priority=100,dl_src={stale_mac},actions=drop"
-        )
-
-        time.sleep(2)
-        run_cmd(f"ovs-ofctl del-flows {sw} dl_src={stale_mac}")
-
-        print(f"  [ACTION] EVICT_ENTRY — MAC {stale_mac} evicted and rule cleared")
-        return stale_mac
-
-    except Exception as e:
-        print(f"  [ERROR] EVICT_ENTRY failed: {e}")
-        return None
-
-def action_flood(sw):
-    # Secure mode so rule takes precedence; idle_timeout=10 auto-expires the rule
-    run_cmd(f"ovs-vsctl set-fail-mode {sw} secure")
-    run_cmd(f"sudo ovs-ofctl add-flow {sw} cookie=0xDEAD,priority=1,idle_timeout=10,actions=FLOOD")
-    print(f"  [ACTION] FLOOD — Temporary flooding rule added (10s idle timeout) on {sw}")
-
-def action_block_port(sw, port):
-    """Bring a port administratively down to stop traffic"""
-    uplink_ports = topology["uplink_ports"]
-
-    if port in uplink_ports:
-        print(f"[SKIP] Cannot block uplink port {port}")
-        return
-    try:
-        run_cmd(f"ovs-ofctl mod-port {sw} {port} down")
-        blocked_ports.add(port)
-        print(f"  [ACTION] BLOCK_PORT — blocked port {port} on {sw}")
-    except Exception as e:
-        print(f"  [ERROR] BLOCK_PORT failed on port {port}: {e}")
-
-def action_unblock_port(sw, port):
-    """Bring a port back up"""
-    try:
-        run_cmd(f"ovs-ofctl mod-port {sw} {port} up")
-        blocked_ports.discard(port)
-        print(f"  [ACTION] UNBLOCK_PORT — unblocked port {port} on {sw}")
-    except Exception as e:
-        print(f"  [ERROR] UNBLOCK_PORT failed on port {port}: {e}")
-
-def action_increase_aging(sw):
-    """Increase MAC aging timer — entries live longer"""
-    try:
-        run_cmd(f"ovs-vsctl set Bridge {sw} other_config:mac-aging-time={AGING_HIGH}")
-        print(f"  [ACTION] INCREASE_AGING — set aging to {AGING_HIGH}s on {sw}")
-    except Exception as e:
-        print(f"  [ERROR] INCREASE_AGING failed: {e}")
-
-def action_decrease_aging(sw):
-    """Decrease MAC aging timer — entries expire faster, table stays fresher"""
-    try:
-        run_cmd(f"ovs-vsctl set Bridge {sw} other_config:mac-aging-time={AGING_LOW}")
-        print(f"  [ACTION] DECREASE_AGING — set aging to {AGING_LOW}s on {sw}")
-    except Exception as e:
-        print(f"  [ERROR] DECREASE_AGING failed: {e}")
-
-def execute_action(sw, action_idx, port=None):
-
-
-    if not topology:
-        print("[ERROR] Topology information not initialized")
-        return None
-    
-    blockable_ports = topology["blockable_ports"]
-    uplink_ports = topology["uplink_ports"]
-    all_ports = topology["all_ports"]   
-
-    evicted_mac = None
-
-    if action_idx == 0: #learn mac
-        action_learn_mac(sw)
-
-    elif action_idx == 1: #evict
-        evicted_mac = action_evict_entry(sw)
-
-    elif action_idx == 2: #flood
-        action_flood(sw)
-
-    elif action_idx == 3: #block
-        if port is None:
-            print(f"  [SKIP] BLOCK_PORT — no port provided")
-        available = [
-            p for p in blockable_ports
-            if p not in blocked_ports
-        ]
-        
-        if available:
-            
-            port = random.choice(available)
-            action_block_port(sw, port)
-        else:
-            print(f"  [SKIP] BLOCK_PORT — no flooding port detected on {sw}")
-
-    elif action_idx == 4: #unblock
-        if blocked_ports:
-            port = random.choice(list(blocked_ports))
-            action_unblock_port(sw, port)
-        else:
-            print(f"  [SKIP] UNBLOCK_PORT — no blocked port to release on {sw}")
-
-
-    elif action_idx == 5:
-        action_increase_aging(sw)
-    elif action_idx == 6:
-        action_decrease_aging(sw)
-
-    return evicted_mac
 
 # =========================================================
 # MAIN MONITOR LOOP
@@ -470,3 +236,113 @@ def monitor(sw):
 
 if __name__ == "__main__":
     monitor(SWITCH)
+
+
+
+
+
+
+# =========================================================
+# 6. ACTION EXECUTION
+# =========================================================
+
+# def action_learn_mac(sw):
+#     run_cmd(f"sudo ovs-ofctl del-flows {sw} cookie=0xDEAD/-1")
+#     run_cmd(f"ovs-vsctl set-fail-mode {sw} standalone")
+#     print(f"  [ACTION] LEARN_MAC — Removed flood rule + standalone mode on {sw}")
+
+# def action_evict_entry(sw):
+#     """Evict only the single stalest MAC entry. Does NOT flush the whole table."""
+#     try:
+#         mac_entries = get_mac_table_entries(sw)
+
+#         if not mac_entries:
+#             print(f"  [ACTION] EVICT_ENTRY — table already empty, nothing to evict on {sw}")
+#             return None
+
+#         stalest    = max(mac_entries, key=lambda e: e["age"])
+#         stale_mac  = stalest["mac"]
+#         stale_port = stalest["port"]
+#         stale_age  = stalest["age"]
+
+#         print(f"  [ACTION] EVICT_ENTRY — evicting MAC {stale_mac} "
+#               f"(port {stale_port}, age {stale_age}s) on {sw}")
+        
+#         run_cmd(
+#             f"ovs-ofctl add-flow {sw} "
+#             f"priority=100,dl_src={stale_mac},actions=drop"
+#         )
+
+#         time.sleep(2)
+#         run_cmd(f"ovs-ofctl del-flows {sw} dl_src={stale_mac}")
+
+#         print(f"  [ACTION] EVICT_ENTRY — MAC {stale_mac} evicted and rule cleared")
+#         return stale_mac
+
+#     except Exception as e:
+#         print(f"  [ERROR] EVICT_ENTRY failed: {e}")
+#         return None
+
+# def action_flood(sw):
+#     # Secure mode so rule takes precedence; idle_timeout=10 auto-expires the rule
+#     run_cmd(f"ovs-vsctl set-fail-mode {sw} secure")
+#     run_cmd(f"sudo ovs-ofctl add-flow {sw} cookie=0xDEAD,priority=1,idle_timeout=10,actions=FLOOD")
+#     print(f"  [ACTION] FLOOD — Temporary flooding rule added (10s idle timeout) on {sw}")
+
+# def action_block_port(sw, port):
+#     """Bring a port administratively down to stop traffic"""
+#     try:
+#         run_cmd(f"ovs-ofctl mod-port {sw} {port} down")
+#         print(f"  [ACTION] BLOCK_PORT — blocked port {port} on {sw}")
+#     except Exception as e:
+#         print(f"  [ERROR] BLOCK_PORT failed on port {port}: {e}")
+
+# def action_unblock_port(sw, port):
+#     """Bring a port back up"""
+#     try:
+#         run_cmd(f"ovs-ofctl mod-port {sw} {port} up")
+#         print(f"  [ACTION] UNBLOCK_PORT — unblocked port {port} on {sw}")
+#     except Exception as e:
+#         print(f"  [ERROR] UNBLOCK_PORT failed on port {port}: {e}")
+
+# def action_increase_aging(sw):
+#     """Increase MAC aging timer — entries live longer"""
+#     try:
+#         run_cmd(f"ovs-vsctl set Bridge {sw} other_config:mac-aging-time={AGING_HIGH}")
+#         print(f"  [ACTION] INCREASE_AGING — set aging to {AGING_HIGH}s on {sw}")
+#     except Exception as e:
+#         print(f"  [ERROR] INCREASE_AGING failed: {e}")
+
+# def action_decrease_aging(sw):
+#     """Decrease MAC aging timer — entries expire faster, table stays fresher"""
+#     try:
+#         run_cmd(f"ovs-vsctl set Bridge {sw} other_config:mac-aging-time={AGING_LOW}")
+#         print(f"  [ACTION] DECREASE_AGING — set aging to {AGING_LOW}s on {sw}")
+#     except Exception as e:
+#         print(f"  [ERROR] DECREASE_AGING failed: {e}")
+
+# def execute_action(sw, action_idx, port=None):
+#     evicted_mac = None
+
+#     if action_idx == 0:
+#         action_learn_mac(sw)
+#     elif action_idx == 1:
+#         evicted_mac = action_evict_entry(sw)
+#     elif action_idx == 2:
+#         action_flood(sw)
+#     elif action_idx == 3:
+#         if port:
+#             action_block_port(sw, port)
+#         else:
+#             print(f"  [SKIP] BLOCK_PORT — no flooding port detected on {sw}")
+#     elif action_idx == 4:
+#         if port:
+#             action_unblock_port(sw, port)
+#         else:
+#             print(f"  [SKIP] UNBLOCK_PORT — no blocked port to release on {sw}")
+#     elif action_idx == 5:
+#         action_increase_aging(sw)
+#     elif action_idx == 6:
+#         action_decrease_aging(sw)
+
+#     return evicted_mac

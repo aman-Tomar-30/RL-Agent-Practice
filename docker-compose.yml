@@ -14,3 +14,11 @@ services:
       - "3000:3000"
     depends_on:
       - prometheus
+
+  episode_exporter:
+    build: .
+    command: python episode_exporter.py
+
+  steps_exporter:
+    build: .
+    command: python steps_exporter.py

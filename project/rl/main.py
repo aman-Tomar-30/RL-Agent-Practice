@@ -11,11 +11,14 @@ if __name__ == "__main__":
     EPISODES = 200
     STEPS    = 30
 
-    agent, encoder, rewards_history = run_live_training(
-        switch=SWITCH,
-        episodes=EPISODES,
-        steps_per_ep=STEPS
-    )
+    try:
+        agent, encoder, rewards_history = run_live_training(
+            switch=SWITCH,
+            episodes=EPISODES,
+            steps_per_ep=STEPS
+        )
+    except KeyboardInterrupt:
+        print("\nTraining interrupted by user.")
 
     # # Test - BINS
     # encoder = LiveStateEncoder()

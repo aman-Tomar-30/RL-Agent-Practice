@@ -8,6 +8,7 @@ fdb_age = Gauge(
     ["port", "vlan", "mac"]
 )
 
+
 def update():
     output = subprocess.check_output(
         ["ovs-appctl", "fdb/show", "g0_s1"],
@@ -42,11 +43,14 @@ def update():
             mac=mac
         ).set(age)
 
-        
-
 start_http_server(8000)
+print("FDB Exporter Running on :8000")
+running = True
+try:
+    while running:
+        update()
+        time.sleep(1)
 
-while True:
-    update()
-    print("executed")
-    time.sleep(1)
+except KeyboardInterrupt:
+    running = False
+    print("Exporter Deactivated")

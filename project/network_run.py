@@ -1,12 +1,12 @@
 from mininet.log import setLogLevel
-import json
 import os
+import json
+
 setLogLevel('info')
 
-from dragonfly import topology, discover_switch_ports
-
+from project.dragonfly import topology, discover_switch_ports
 # from mininet.cli import CLI #import during CLI testing
-from auto_traffic import keepalive, fdb_refresh_loop, generate_traffic, keepalive
+from project.auto_traffic import keepalive, fdb_refresh_loop
 import time
 import threading
 
@@ -15,10 +15,11 @@ net = None
 try:
     net = topology()
     net.start()
+    # for h in net.hosts:
+    #     print(h.name)
 
-    # get info about all, blockable, uplink ports of a switch
+    # get info about port
     info = discover_switch_ports(net, "g0_s1")
-
     
     BASE_DIR = os.path.dirname(os.path.abspath(__file__))
     SAVE_PATH = os.path.join(BASE_DIR, "rl", "topology_info.json")
@@ -27,21 +28,12 @@ try:
 
     with open(SAVE_PATH, "w") as f:
         json.dump(info, f, indent=4)
-    
+ 
+    info = discover_switch_ports(net, "g0_s1")
+    uplink_ports = info["uplink_ports"]
 
-
-
-
-
-
-    # info = discover_switch_ports(net, "g0_s1")
-    # blockable_ports = info["blockable_ports"]
-    # uplink_ports = info["uplink_ports"]
-    # all_ports = info["all_ports"]
-    # print("\n===== PORT DISCOVERY =====")
-    # print(f"Blockable Ports : {blockable_ports}")
-    # print(f"Uplink Ports    : {uplink_ports}")
-    # print(f"All Ports       : {all_ports}")
+    print("\n===== PORT DISCOVERY =====")
+    print(f"Uplink Ports    : {uplink_ports}")
 
     print("\n[!] Configuring switches...")
 
@@ -62,9 +54,7 @@ try:
                                           daemon=True)
     fbd_refresh_thread.start()
 
-    # ── Generate traffic ──
-    generate_traffic(net, 'g0_s1')
-
+    # ── Generate traffic Thread ──
     ka_thread = threading.Thread(target=keepalive, 
                                  args=(net,), 
                                  daemon=True)

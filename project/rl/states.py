@@ -45,9 +45,3 @@ class LiveStateEncoder:
 
     def total_states(self):
         return self.bins ** 3
-    
-    def decode_state_index(self, state_idx):
-        mac_bin = state_idx // (self.bins * self.bins)
-        flood_bin = (state_idx // self.bins) % self.bins
-        age_bin = state_idx % self.bins
-        return mac_bin, flood_bin, age_bin
