@@ -17,3 +17,8 @@ scrape_configs:
     static_configs:
       - targets:
           - steps_exporter:8002
+
+  - job_name: "redis_mac"
+    static_configs:
+      - targets:
+          - host.docker.internal:8003

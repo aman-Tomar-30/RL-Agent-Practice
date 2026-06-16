@@ -6,7 +6,8 @@ setLogLevel('info')
 
 from project.dragonfly import topology
 # from mininet.cli import CLI #import during CLI testing
-from project.auto_traffic import keepalive
+#from project.traffic import keepalive
+from project.traffic import start_learning_phase
 import time
 import threading
 
@@ -29,11 +30,18 @@ try:
 
     #CLI(net) #testing purpose
 
+    traffic_thread = threading.Thread(
+        target=start_learning_phase,
+        args=(net,),
+        daemon=True
+    )
+
+    traffic_thread.start()
     # ── Generate traffic Thread ──
-    ka_thread = threading.Thread(target=keepalive, 
-                                 args=(net,), 
-                                 daemon=True)
-    ka_thread.start()
+    # ka_thread = threading.Thread(target=keepalive, 
+    #                              args=(net,), 
+    #                              daemon=True)
+    # ka_thread.start()
 
     running = True
     try:
