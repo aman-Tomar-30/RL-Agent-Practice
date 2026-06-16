@@ -1,13 +1,12 @@
 import random
 import time
 import threading
+random.seed(42) #pseudorandom number generator
 
 stop_event = threading.Event()
 
-# =====================================================
-# PROFILES
-# =====================================================
 
+# PROFILES
 TRAFFIC_PROFILES = [
 
     {
@@ -42,10 +41,8 @@ TRAFFIC_PROFILES = [
 ]
 
 
-# =====================================================
-# GROUP DETECTION
-# =====================================================
 
+# GROUP DETECTION
 def get_groups(net):
 
     groups = {
@@ -68,10 +65,7 @@ def get_groups(net):
     return groups
 
 
-# =====================================================
 # ACTIVE HOSTS
-# =====================================================
-
 def get_active_hosts(net, profile):
 
     amin, amax = profile["active_range"]
@@ -84,10 +78,7 @@ def get_active_hosts(net, profile):
     return random.sample(net.hosts, count)
 
 
-# =====================================================
 # DESTINATION CHOICE
-# =====================================================
-
 def choose_destination(src, groups, local_prob):
 
     src_group = None
@@ -130,10 +121,7 @@ def choose_destination(src, groups, local_prob):
     return random.choice(candidates)
 
 
-# =====================================================
 # FLOW DURATION
-# =====================================================
-
 def get_duration(profile_name):
 
     if profile_name == "heavy_tail":
@@ -160,9 +148,8 @@ def get_duration(profile_name):
         return random.randint(300, 1800)
 
 
-# =====================================================
+
 # BOOTSTRAP LEARNING
-# =====================================================
 
 def bootstrap_learning(net):
 
@@ -183,9 +170,8 @@ def bootstrap_learning(net):
     print("[BOOTSTRAP] Done")
 
 
-# =====================================================
+
 # KEEPALIVE
-# =====================================================
 
 def keepalive_hosts(active_hosts, groups, profile):
 
@@ -213,10 +199,7 @@ def keepalive_hosts(active_hosts, groups, profile):
         )
 
 
-# =====================================================
 # SESSION FLOW
-# =====================================================
-
 def start_session(active_hosts,
                   groups,
                   profile):
@@ -250,9 +233,8 @@ def start_session(active_hosts,
     )
 
 
-# =====================================================
+
 # BURST
-# =====================================================
 
 def start_burst(active_hosts,
                 groups,
@@ -289,9 +271,8 @@ def start_burst(active_hosts,
         )
 
 
-# =====================================================
+
 # MAIN ENGINE
-# =====================================================
 
 def start_learning_phase(net):
 
