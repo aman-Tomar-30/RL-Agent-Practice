@@ -1,10 +1,8 @@
 import random
 import time
 import threading
-random.seed(42) #pseudorandom number generator
 
 stop_event = threading.Event()
-
 
 # PROFILES
 TRAFFIC_PROFILES = [
