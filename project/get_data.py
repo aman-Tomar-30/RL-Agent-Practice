@@ -168,7 +168,7 @@ def print_table():
             f"Flood Pressure: {fpressure:.3f}, "
             f"Age Score: {agescore:.3f}, "
         )
-    print(f"{'MAC':<25} {'PORT':<10} {'AGE':<10} {'seen_count':<10}")
+    print(f"{'PORT':<10} {'MAC':<25} {'AGE':<10} {'seen_count':<10}")
     print("-" * 60)
 
     with open(STAT_CSV, 'a', newline='') as f:      # ← was missing
@@ -224,8 +224,8 @@ def flood_pressure(new_entries, prev_entries=None):
 def normalize(value, max_value):
     if max_value == 0:
         return 0
-    return round(value / max_value, 4)
-    #return round(min(value / max_value, 1.0), 4)
+    return round(min(value / max_value, 1.0), 4)
+    #return round(value / max_value, 4)
 
 def get_normalized_state(sw, prev_entries=None):
     mac_entries = {k: True for k in r.hkeys(HASH_KEY)}

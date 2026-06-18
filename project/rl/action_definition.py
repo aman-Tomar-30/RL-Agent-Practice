@@ -140,7 +140,7 @@ def action_rebalance_table(sw, target_size=10):   # ← sw param added
         score = calculate_importance(entry)
         scored.append((mac, score))
 
-    scored.sort(key=lambda x: x[1])   # least important first
+    scored.sort(key=lambda x: x[1])   # least important first, LFU Removal
 
     removed = 0
     for mac, _ in scored[:remove_count]:
