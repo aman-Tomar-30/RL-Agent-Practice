@@ -1,4 +1,3 @@
-
 def get_reward(
     old_fill,
     new_fill,
@@ -10,156 +9,147 @@ def get_reward(
 ):
     reward = 0
 
-    # MAC FILL
-    HIGH_FILL = 0.8
-    CRITICAL_FILL = 0.95
+    HIGH_FILL = 1.0
+    CRITICAL_FILL = 2.0
 
-    # FLOOD_P
-    HIGH_FLOOD = 0.5
+    HIGH_FLOOD = 1.0
 
-    # AGE
-
-    # stale age threshold conditions :
-    # timeout = 60 :: avg_age > 36
-    # timeout = 300 :: avg_age > 180
-    # timeout = 600 :: avg_age > 360
-    stale_age_threshold = 0.6 
-
-    # fresh age threshold conditions :
-    # timeout = 60 :: avg_age > 12
-    # timeout = 300 :: avg_age > 60
-    # timeout = 600 :: avg_age > 120
-    fresh_age_threshold = 0.2  
-
-    fill_gain = old_fill - new_fill
-    flood_gain = old_flood - new_flood
-    age_gain = old_age - new_age
+    stale_age_threshold = 0.7
+    fresh_age_threshold = 0.3
 
 
-# ------- 
-    if action == "REBALANCE":
+    fill_reduction = old_fill - new_fill
+    flood_reduction = old_flood - new_flood
+    age_reduction = old_age - new_age
 
-        # reward
-        if new_fill < old_fill:
-            if old_fill > 0.8 and old_age > stale_age_threshold:
-                reward += 7   
-            elif old_fill > 0.8:
-                reward += 5   
-       
-        # penalty
-        elif new_fill > old_fill:
-            reward -= 5   
-        elif old_fill < 0.5 and old_flood == 0 and old_age < fresh_age_threshold:
-            reward -= 3 
-            
-#----------------
-    if action == "EVICT_ENTRY":
 
-        # reward
-        if old_age > stale_age_threshold:
-            if old_fill > CRITICAL_FILL:
-                reward += 7
-            elif old_fill > HIGH_FILL:
-                reward += 5
+    if action == "LEARN_MAC":
 
-        # penalty
-        elif old_fill < 0.5:
-            reward -= 10
-        elif old_age < fresh_age_threshold:
-            reward -= 5
-
-# ------------
-    if action == "INCREASE_AGING":
-
-        # reward
+        # flooding existed and reduced
         if old_flood > HIGH_FLOOD:
-            if old_fill > HIGH_FILL:
-                reward += 7
-            else:
+
+            if flood_reduction > 0:
+                reward += 8
+
+            elif flood_reduction < 0:
+                reward -= 8
+
+        # table was already critically full
+        if old_fill > CRITICAL_FILL:
+            reward -= 5
+
+
+
+    elif action == "EVICT_ENTRY":
+
+        # eviction should reduce fill
+        if old_fill > CRITICAL_FILL:
+
+            if fill_reduction > 0:
+                reward += 8
+
+            elif fill_reduction < 0:
+                reward -= 8
+
+        elif old_fill > HIGH_FILL:
+
+            if fill_reduction > 0:
                 reward += 5
 
-        # penalty
-        elif old_flood == 0 and old_fill < 0.5:
+        # stale entries removed
+        if old_age > stale_age_threshold:
+
+            if age_reduction > 0:
+                reward += 4
+
+        # unnecessary eviction
+        if old_fill < 0.5:
+            reward -= 10
+
+        if old_age < fresh_age_threshold:
             reward -= 5
-        elif old_age < fresh_age_threshold:
+
+    elif action == "INCREASE_AGING":
+
+        # useful when flooding exists
+        if old_flood > HIGH_FLOOD:
+
+            if flood_reduction > 0:
+
+                if old_fill > HIGH_FILL:
+                    reward += 7
+                else:
+                    reward += 5
+
+            elif flood_reduction < 0:
+                reward -= 5
+
+        # keeping already-fresh entries longer
+        if old_age < fresh_age_threshold:
             reward -= 3
 
-
-# -------------
-
-
-    if action == "DECREASE_AGING":
-
-        # reward
-        if old_fill < 0.5 and old_flood == 0:
-            if old_age > stale_age_threshold:
-                reward += 7
-            else:
-                reward += 5
-
-        # penalty
-        elif old_fill > HIGH_FILL:
-            reward -= 7
-        elif old_flood > HIGH_FLOOD:
+        # no flood + empty table
+        if old_flood == 0 and old_fill < 0.5:
             reward -= 5
 
 
-# --------- 
+
+    elif action == "DECREASE_AGING":
+
+        # should remove stale entries
+        if old_age > stale_age_threshold:
+
+            if age_reduction > 0:
+
+                if old_fill < HIGH_FILL:
+                    reward += 7
+                else:
+                    reward += 5
+
+            elif age_reduction < 0:
+                reward -= 5
+
+        # bad when table already crowded
+        if old_fill > CRITICAL_FILL:
+            reward -= 7
+
+        # bad when flooding already high
+        if old_flood > HIGH_FLOOD:
+            reward -= 5
+
 
     reward += (
-        50 * flood_gain +
-        10 * fill_gain +   
-        5 * age_gain
+        20 * fill_reduction +
+        5 * flood_reduction +
+        2 * age_reduction
     )
 
-    # situation : for logging
-    if new_fill >= 0.95:
+
+
+    if new_fill >= CRITICAL_FILL:
         situation = "CRITICAL"
-    elif new_fill >= 0.80:
+
+    elif new_fill >= HIGH_FILL:
         situation = "PREVENTIVE"
+
     else:
         situation = "NORMAL"
 
-    # outcome : for logging
-    if new_fill < old_fill and new_flood < old_flood:
+    if (
+        fill_reduction > 0 or
+        flood_reduction > 0 or
+        age_reduction > 0
+    ):
         outcome = "improved"
-    elif new_fill > old_fill or new_flood > old_flood:
+
+    elif (
+        fill_reduction < 0 or
+        flood_reduction < 0 or
+        age_reduction < 0
+    ):
         outcome = "degraded"
+
     else:
         outcome = "neutral"
 
     return reward, outcome, situation
-
-
-
-
-
-    # action_cost = {
-    #     0: 0.10,   # EVICT_ENTRY
-    #     1: 0.05,   # INCREASE_AGING
-    #     2: 0.05,   # DECREASE_AGING
-    #     3: 0.01    # REBALANCE
-    # }
-
-    # reward -= action_cost.get(action, 0)
-
-    # if new_fill >= 0.95:
-    #     situation = "CRITICAL"
-    #     reward -= 15
-
-    # elif new_fill >= 0.80:
-    #     situation = "PREVENTIVE"
-    #     reward += 3
-
-    # else:
-    #     situation = "NORMAL"
-
-
-    # if reward > 0:
-    #     outcome = "improved"
-    # elif reward < 0:
-    #     outcome = "degraded"
-    # else:
-    #     outcome = "neutral"
-
-    # return reward, outcome, situation

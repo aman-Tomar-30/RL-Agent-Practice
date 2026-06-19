@@ -4,7 +4,7 @@ sys.path.append(os.path.dirname(__file__))
 from project.rl.env import LiveEnv
 from project.rl.states import LiveStateEncoder
 from project.rl.agent import QAgent
-import numpy as np
+
 
 def save_final_qtable(agent, encoder, path='project/results/qtable/final_q_table.csv'):
     os.makedirs(os.path.dirname(path), exist_ok=True)
@@ -24,7 +24,7 @@ def save_final_qtable(agent, encoder, path='project/results/qtable/final_q_table
             'Q_EVICT',
             'Q_INC_AGE',
             'Q_DEC_AGE',
-            'Q_REBALANCE',
+            'Q_LEARN_MAC',
             'Best_Action'
         ])
 
@@ -36,9 +36,7 @@ def save_final_qtable(agent, encoder, path='project/results/qtable/final_q_table
             age_bin   =  state_idx % bins
 
             q = agent.get_q_values(state_idx)
-            #best_action = ['EVICT', 'INC_AGE', 'DEC_AGE', 'REBALANCE'][int(q.index(max(q)))]
-            actions = ['EVICT', 'INC_AGE', 'DEC_AGE', 'REBALANCE']
-            best_action = actions[int(np.argmax(q))]
+            best_action = ['EVICT', 'INC_AGE', 'DEC_AGE', 'LEARN_MAC'][int(q.argmax())]
 
             writer.writerow([
                 state_idx,
@@ -95,7 +93,7 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
             'Q_EVICT',
             'Q_INC_AGE',
             'Q_DEC_AGE',
-            'Q_REBALANCE',
+            'Q_LEARN_MAC',
 
             'Chosen_By',
             'Outcome',
@@ -123,7 +121,7 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
             'Q_EVICT',
             'Q_INC_AGE',
             'Q_DEC_AGE',
-            'Q_REBALANCE'
+            'Q_LEARN_MAC'
             ])
 
     rewards_history = []
@@ -243,11 +241,11 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
             writer = csv.writer(f)
 
             writer.writerow([
-            'State_Index',
-            'Q_EVICT',
-            'Q_INC_AGE',
-            'Q_DEC_AGE',
-            'Q_REBALANCE'
+                'State_Index',
+                'Q_EVICT',
+                'Q_INC_AGE',
+                'Q_DEC_AGE',
+                'Q_LEARN_MAC'
             ])
 
             for state_idx in range(encoder.total_states()):
@@ -266,3 +264,5 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
 
     save_final_qtable(agent, encoder)
     return agent, encoder, rewards_history
+
+

@@ -168,7 +168,7 @@ def print_table():
             f"Flood Pressure: {fpressure:.3f}, "
             f"Age Score: {agescore:.3f}, "
         )
-    print(f"{'PORT':<10} {'MAC':<25} {'AGE':<10} {'seen_count':<10}")
+    print(f"{'MAC':<25} {'PORT':<10} {'AGE':<10} {'seen_count':<10}")
     print("-" * 60)
 
     with open(STAT_CSV, 'a', newline='') as f:      # ← was missing
@@ -198,7 +198,7 @@ def get_ageScore():
 
 def mac_fill():
     redis_count = r.hlen(HASH_KEY)
-    return normalize(redis_count, MAX_MAC_CAPACITY)
+    return round(redis_count/MAX_MAC_CAPACITY, 4)
 
 def flood_pressure(new_entries, prev_entries=None):
     global previous_snapshot
@@ -232,18 +232,18 @@ def get_normalized_state(sw, prev_entries=None):
 
     print(f"[DEBUG] sw={sw} redis_count={r.hlen(HASH_KEY)}")
 
-    mac_fill_val = mac_fill()
+    mac_fill_val = mac_fill() # non-normalised
 
-    flood_val    = flood_pressure(mac_entries, prev_entries)
+    flood_val    = flood_pressure(mac_entries, prev_entries) #normalised
 
-    age_val      = get_ageScore()
+    age_val      = get_ageScore() #normalised
 
     return mac_fill_val, flood_val, age_val, mac_entries 
 
 def init_csv():
     with open(STAT_CSV, 'w', newline='') as f:
         writer = csv.writer(f)
-        writer.writerow(['Occupancy', 'Flood', 'Age'])
+        writer.writerow(['mac_fill', 'flood_p', 'avg_age'])
 
 if __name__ == "__main__":
     init_csv() 

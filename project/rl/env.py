@@ -16,7 +16,7 @@ from project.rl.actions import ActionSpace
 """
     Reads live network state
     Applies RL actions safely (with guards)
-    omputes reward + next state transition
+    omputes reward + next state transitionf
 """
 
 class LiveEnv:
@@ -62,24 +62,6 @@ class LiveEnv:
         state_info = self.get_live_state()
         original_action = action
 
-    #
-    # Guard:
-    #   
-
-        # Don't evict when table is nearly empty
-        if action == 0 and state_info["mac_fill"] < 0.20:
-            action = 2  # switch to increase aging
-
-        if action == 1 and state_info["flood_pressure"] > 0.6:
-            action = 0  # evict instead
-
-        if action == 2 and state_info["mac_fill"] >= 0.95:
-            action = 0  # evict instead
-
-        # Don't rebalance when table is nearly empty
-        if action == 3 and state_info["mac_fill"] < 0.20:
-            action = 1  # increase aging instead
-
         executed_action = action
 
         result = execute_action(self.switch, executed_action, state_info["flood_pressure"])
@@ -104,7 +86,7 @@ class LiveEnv:
         )
 
         reward, outcome, situation = get_reward(
-            action=executed_action,
+            action=ActionSpace.get_action_name(executed_action),
 
             old_fill=state_info["mac_fill"],
             new_fill=next_state_info["mac_fill"],
@@ -116,7 +98,6 @@ class LiveEnv:
             new_age=next_state_info["avg_age"],
 
         )
-
 
         info = {
             "action_name":     ActionSpace.get_action_name(executed_action),

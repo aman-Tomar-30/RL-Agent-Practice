@@ -4,7 +4,7 @@ class ActionSpace:
         0: "EVICT",
         1: "INCREASE_AGING",
         2: "DECREASE_AGING",
-        3: "REBALANCE"
+        3: "LEARN_MAC"
     }
 
     @staticmethod

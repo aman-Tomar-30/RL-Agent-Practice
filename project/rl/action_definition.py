@@ -120,35 +120,12 @@ def action_decrease_aging(sw):
     print(f"[ACTION] DECREASE_AGING → set limit = {new_limit}")
     return new_limit
 
-def calculate_importance(entry):
-    age = entry.get("age", 0)
-    seen_count = entry.get("seen_count", 1)
-    return seen_count + (age * 0.01)
 
-def action_rebalance_table(sw, target_size=10):   # ← sw param added
-    mac_entries = sync_redis_from_ovs(sw)          # ← read from OVS not Redis
-    current_entries = len(mac_entries)
 
-    if current_entries <= target_size:
-        print("[ACTION] REBALANCE — no cleanup needed")
-        return 0
 
-    remove_count = current_entries - target_size
-
-    scored = []
-    for mac, entry in mac_entries.items():
-        score = calculate_importance(entry)
-        scored.append((mac, score))
-
-    scored.sort(key=lambda x: x[1])   # least important first, LFU Removal
-
-    removed = 0
-    for mac, _ in scored[:remove_count]:
-        _delete_from_redis(mac)        # ← delete from Redis
-        removed += 1
-
-    print(f"[ACTION] REBALANCE — removed {removed} entries")
-    return removed
+def action_learn_mac(sw):
+    print(f"[ACTION] LEARN_MAC — no-op, network healthy")
+    return None
 
 def execute_action(sw, action_idx, flood_pressure):
     evicted_mac = None
@@ -160,7 +137,7 @@ def execute_action(sw, action_idx, flood_pressure):
     elif action_idx == 2:
         action_decrease_aging(sw)
     elif action_idx == 3:
-        action_rebalance_table(sw)     # ← pass sw
+        action_learn_mac(sw)
     else:
         print(f"[EXECUTE] Unknown action: {action_idx}")
 

@@ -1,21 +1,27 @@
 class LiveStateEncoder:
-    def __init__(self, bins=8):
+    def __init__(self, bins=5):
         self.bins = bins
-        self.interval = 1.0 / self.bins # 0.125
+        self.interval = 1.0 / bins
+        self.mac_edges = [0.5, 1.0, 1.5, 2.5]
 
-    def binning(self, value): 
-        bin_index = int(value / self.interval) # 0.625/0.125 = 5.04 => 5
-        # it truncates so bin 0 range [0.000 - 0.125) like this others
 
-        # Handle value = 1.0 case 
-        # if value = 1 then bin_index = 8 but our bins are from 0 to 7 so keep it in bin 7
-        bin_value = min(bin_index, self.bins - 1)
-        return bin_value
+    def mac_binning(self, value):
+        for i, edge in enumerate(self.mac_edges):
+            if value < edge:
+                return i
+        return len(self.mac_edges)  # bucket 4
+
+    # Flood/Age Bucketing
+    def normal_binning(self, value):
+        bin_index = int(value / self.interval)
+        return min(bin_index, self.bins - 1)
+
 
     def get_state_index(self, state_info):
-        mac_bin = self.binning(state_info["mac_fill"])
-        flood_bin = self.binning(state_info["flood_pressure"])
-        age_bin = self.binning(state_info["avg_age"])
+
+        mac_bin = self.mac_binning(state_info["mac_fill"])
+        flood_bin = self.normal_binning(state_info["flood_pressure"])
+        age_bin = self.normal_binning(state_info["avg_age"])
 
         state_index = (
             mac_bin * self.bins * self.bins
@@ -25,26 +31,21 @@ class LiveStateEncoder:
 
         return state_index
 
-    def get_bin_name(self, bin_number):
-        interval = 1.0 / self.bins
-        start = bin_number * interval
-        end = start + interval
-        if bin_number == self.bins - 1:
-            end = 1.
-        return f"Bin {bin_number}: [{start:.3f}, {end:.3f}]"
-
-    def display_bins_with_intervals(self):
-        interval = 1.0 / self.bins
-        for i in range(self.bins):
-            start = i * interval
-            if i == self.bins - 1:
-                end = 1.0
-            else:
-                end = (i + 1) * interval
-            print(f"Bin {i}: {start:.3f} - {end:.3f}")
 
     def total_states(self):
         return self.bins ** 3
-    
-    def decode_state_index(self, state_idx):
-        return self.state_space[state_idx]
+
+    def show_mac_buckets(self):
+        print("MAC Fill Buckets:")
+        print("Bucket 0 : < 0.5")
+        print("Bucket 1 : 0.5 - 1.0")
+        print("Bucket 2 : 1.0 - 1.5")
+        print("Bucket 3 : 1.5 - 2.5")
+        print("Bucket 4 : >= 2.5")
+
+    def show_normal_buckets(self):
+        print("\nFlood/Age Buckets:")
+        for i in range(self.bins):
+            start = i * self.interval
+            end = 1.0 if i == self.bins - 1 else (i + 1) * self.interval
+            print(f"Bucket {i} : {start:.2f} - {end:.2f}")
