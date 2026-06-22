@@ -11,7 +11,7 @@ fdb_age = Gauge(
 
 def update():
     output = subprocess.check_output(
-        ["ovs-appctl", "fdb/show", "g0_s1"],
+        ["ovs-appctl", "fdb/show", "g0_s0"],
         text=True
     )
 

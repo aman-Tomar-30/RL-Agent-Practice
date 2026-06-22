@@ -4,7 +4,7 @@ import csv
 import os
 
 SWITCH = "g0_s1"
-MAX_MAC_CAPACITY = 10
+MAX_MAC_CAPACITY = 15
 DEFAULT_AGE = 300
 
 
@@ -45,7 +45,6 @@ def run_cmd(cmd):
 
         return None
     
-
 
 def get_mac_table(sw_name):
     cmd = f"ovs-appctl fdb/show {sw_name}"
@@ -136,4 +135,4 @@ try:
             time.sleep(1)
 
 except KeyboardInterrupt:
-    print("User INterrupted!!!")
+    print("User Interrupted!!!")

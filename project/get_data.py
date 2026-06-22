@@ -28,7 +28,7 @@ REJOIN_THRESHOLD = 3
 
 SWITCH = "g0_s1"
 DEFAULT_AGE = 300
-MAX_MAC_CAPACITY = 10
+MAX_MAC_CAPACITY = 15
 
 r.set("mac_aging_limit", DEFAULT_AGE)
 
@@ -257,3 +257,5 @@ if __name__ == "__main__":
 
     except KeyboardInterrupt:
         print("You Exit!!!")
+
+
