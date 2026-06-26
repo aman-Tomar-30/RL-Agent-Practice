@@ -7,13 +7,13 @@ import seaborn as sns
 # df['mac_fill'] = round((df['mac_fill'] / 15) * 10, 3)
 
 # # Reorder columns
-# df = df[['mac_fill', 'flood_pressure', 'age_score']]
+# df = df[['mac_fill', 'new_mac_rate', 'age_score']]
 # #print(df)
 
 # df.to_csv("without_rl.csv", index=False)
 
 df = pd.read_csv("results/logs/live_step_log.csv")
-df = df[['mac_fill', 'flood_pressure', 'avg_age']]
+df = df[['mac_fill', 'new_mac_rate', 'avg_age']]
 #  #print(df)
 df.to_csv("with_rl.csv", index=False)
 
@@ -25,9 +25,9 @@ comparison = pd.Series({
         ((df2['mac_fill'].mean() - df1['mac_fill'].mean())
          / df1['mac_fill'].mean()) * 100,
 
-    'flood_pressure':
-        ((df2['flood_pressure'].mean() - df1['flood_pressure'].mean())
-         / df1['flood_pressure'].mean()) * 100,
+    'new_mac_rate':
+        ((df2['new_mac_rate'].mean() - df1['new_mac_rate'].mean())
+         / df1['new_mac_rate'].mean()) * 100,
 
     'age':
         ((df2['avg_age'].mean() - df1['age_score'].mean())
@@ -46,9 +46,9 @@ fig, axes = plt.subplots(3, 1, figsize=(14, 10))
 (df2['mac_fill'].rolling(window).mean()).plot(ax=axes[0], label='RL')
 axes[0].set_title('mac_fill')
 
-(df1['flood_pressure'].rolling(window).mean()).plot(ax=axes[1], label='Traditional')
-(df2['flood_pressure'].rolling(window).mean()).plot(ax=axes[1], label='RL')
-axes[1].set_title('flood_pressure')
+(df1['new_mac_rate'].rolling(window).mean()).plot(ax=axes[1], label='Traditional')
+(df2['new_mac_rate'].rolling(window).mean()).plot(ax=axes[1], label='RL')
+axes[1].set_title('new_mac_rate')
 
 (df1['age_score'].rolling(window).mean()).plot(ax=axes[2], label='Traditional')
 (df2['avg_age'].rolling(window).mean()).plot(ax=axes[2], label='RL')

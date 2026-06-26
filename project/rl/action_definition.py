@@ -78,14 +78,14 @@ def sync_redis_from_ovs(sw):
 
     return filtered
 
-def action_evict_entry(sw, flood_pressure):
+def action_evict_entry(sw, new_mac_rate):
     mac_entries = sync_redis_from_ovs(sw)   # ← sync first so seen_count exists
 
     if not mac_entries:
         return None
 
-    policy = "LFU" if flood_pressure > 0.6 else "LRU"
-    print(f"[EVICT] Policy={policy}, flood={flood_pressure:.3f}")
+    policy = "LFU" if new_mac_rate > 0.6 else "LRU"
+    print(f"[EVICT] Policy={policy}, flood={new_mac_rate:.3f}")
 
     if policy == "LRU":
         return init_lru_eviction(mac_entries)
@@ -127,11 +127,11 @@ def action_learn_mac(sw):
     print(f"[ACTION] LEARN_MAC — no-op, network healthy")
     return None
 
-def execute_action(sw, action_idx, flood_pressure):
+def execute_action(sw, action_idx, new_mac_rate):
     evicted_mac = None
 
     if action_idx == 0:
-        evicted_mac = action_evict_entry(sw, flood_pressure)
+        evicted_mac = action_evict_entry(sw, new_mac_rate)
     elif action_idx == 1:
         action_increase_aging(sw)
     elif action_idx == 2:

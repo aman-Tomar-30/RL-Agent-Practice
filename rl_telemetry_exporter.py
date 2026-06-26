@@ -9,7 +9,7 @@ r = redis.Redis(host="localhost", port=6379, decode_responses=True)
 # Define Prometheus Gauges for Step-Level Metrics
 RL_MAC_FILL = Gauge("rl_mac_fill", "Live MAC Table Fill Ratio")
 RL_MAC_COUNT = Gauge("rl_mac_count", "Live MAC Entry Count in OVS")
-RL_FLOOD_PRESSURE = Gauge("rl_flood_pressure", "Live Network Flood Pressure")
+RL_NEW_MAC_RATE = Gauge("rl_new_mac_rate", "Live Network New MAC Rate")
 RL_AVG_AGE = Gauge("rl_avg_age", "Live Average MAC Entry Age")
 RL_STEP_REWARD = Gauge("rl_step_reward", "Reward obtained in the current step")
 RL_TOTAL_EP_REWARD = Gauge("rl_total_ep_reward", "Running total reward inside current episode")
@@ -40,7 +40,7 @@ def process_telemetry():
         if channel == "rl_step_channel":
             # Update step metrics in RAM
             RL_MAC_FILL.set(data["mac_fill"])
-            RL_FLOOD_PRESSURE.set(data["flood_pressure"])
+            RL_NEW_MAC_RATE.set(data["new_mac_rate"])
             RL_AVG_AGE.set(data["avg_age"])
             RL_STEP_REWARD.set(data["reward"])
             RL_EPSILON.set(data["epsilon"])

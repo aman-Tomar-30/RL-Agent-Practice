@@ -11,6 +11,6 @@ def write_row_csv(row):
         writer = csv.writer(file)
 
         if not file_exists:
-            writer.writerow(["mac_fill", "flood_pressure", "avg_age"])
+            writer.writerow(["mac_fill", "new_mac_rate", "avg_age"])
 
         writer.writerow(row)

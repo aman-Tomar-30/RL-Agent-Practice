@@ -10,33 +10,32 @@ def get_reward(
     reward = 0
 
     HIGH_FILL = 1.0
-    CRITICAL_FILL = 2.0
+    CRITICAL_FILL = 1.75
+    HEATHY_FILL = 0.60
 
-    HIGH_FLOOD = 1.0
+    HIGH_FLOOD = 0.4
 
-    stale_age_threshold = 0.7
-    fresh_age_threshold = 0.3
+    stale_age_threshold = 0.05
+    fresh_age_threshold = 0.01
 
 
     fill_reduction = old_fill - new_fill
-    flood_reduction = old_flood - new_flood
+    new_mac_rate_reduction = old_flood - new_flood
     age_reduction = old_age - new_age
 
 
     if action == "LEARN_MAC":
 
         # flooding existed and reduced
-        if old_flood > HIGH_FLOOD:
-
-            if flood_reduction > 0:
+        if new_fill < HEATHY_FILL:
                 reward += 8
 
-            elif flood_reduction < 0:
+        elif new_fill > HIGH_FILL and new_fill < CRITICAL_FILL:
                 reward -= 8
 
         # table was already critically full
-        if old_fill > CRITICAL_FILL:
-            reward -= 5
+        elif new_fill >= CRITICAL_FILL:
+            reward -= 15
 
 
 
@@ -57,10 +56,10 @@ def get_reward(
                 reward += 5
 
         # stale entries removed
-        if old_age > stale_age_threshold:
+        if old_flood == 0:
 
-            if age_reduction > 0:
-                reward += 4
+            if new_flood > 0:
+                reward -= 10
 
         # unnecessary eviction
         if old_fill < 0.5:
@@ -72,25 +71,24 @@ def get_reward(
     elif action == "INCREASE_AGING":
 
         # useful when flooding exists
-        if old_flood > HIGH_FLOOD:
+        if old_fill > HEATHY_FILL:
+            if new_fill >= CRITICAL_FILL:
+                reward -= 15
+            elif new_fill >= HIGH_FILL:
+                reward -= 7
 
-            if flood_reduction > 0:
-
-                if old_fill > HIGH_FILL:
-                    reward += 7
-                else:
-                    reward += 5
-
-            elif flood_reduction < 0:
+            if new_mac_rate_reduction < 0:
                 reward -= 5
+            elif new_mac_rate_reduction > 0:
+                reward += 3
 
         # keeping already-fresh entries longer
-        if old_age < fresh_age_threshold:
-            reward -= 3
+        if new_age < fresh_age_threshold:
+            reward += 3
 
         # no flood + empty table
-        if old_flood == 0 and old_fill < 0.5:
-            reward -= 5
+        if new_fill < HEATHY_FILL:
+            reward += 5
 
 
 
@@ -119,8 +117,8 @@ def get_reward(
 
 
     reward += (
-        20 * fill_reduction +
-        5 * flood_reduction +
+        7 * fill_reduction +
+        15 * new_mac_rate_reduction +
         2 * age_reduction
     )
 
@@ -137,14 +135,14 @@ def get_reward(
 
     if (
         fill_reduction > 0 or
-        flood_reduction > 0 or
+        new_mac_rate_reduction > 0 or
         age_reduction > 0
     ):
         outcome = "improved"
 
     elif (
         fill_reduction < 0 or
-        flood_reduction < 0 or
+        new_mac_rate_reduction < 0 or
         age_reduction < 0
     ):
         outcome = "degraded"

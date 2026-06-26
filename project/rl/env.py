@@ -43,7 +43,7 @@ class LiveEnv:
         
     def get_live_state(self):
 
-        mac_fill_val, flood_val, age_val, mac_entries = get_normalized_state(
+        mac_fill_val, new_mac_val, age_val, mac_entries = get_normalized_state(
             self.switch,
             self.prev_mac_entries    # ← pass previous snapshot
         )
@@ -52,7 +52,7 @@ class LiveEnv:
 
         return {
             "mac_fill":       mac_fill_val,
-            "flood_pressure": flood_val,
+            "new_mac_rate": new_mac_val,
             "avg_age":        age_val,
             "mac_entries":    mac_entries
         }
@@ -64,7 +64,7 @@ class LiveEnv:
 
         executed_action = action
 
-        result = execute_action(self.switch, executed_action, state_info["flood_pressure"])
+        result = execute_action(self.switch, executed_action, state_info["new_mac_rate"])
 
         # if executed_action in [0, 1]:
         #     time.sleep(3)
@@ -73,14 +73,14 @@ class LiveEnv:
         next_state_info = self.get_live_state()
 
         fill_change  = round(next_state_info["mac_fill"]       - state_info["mac_fill"],       4)
-        flood_change = round(next_state_info["flood_pressure"] - state_info["flood_pressure"], 4)
+        mac_change = round(next_state_info["new_mac_rate"] - state_info["new_mac_rate"], 4)
 
         print(
         f"[STATE] "
         f"Fill {state_info['mac_fill']:.3f}"
         f"->{next_state_info['mac_fill']:.3f} | "
-        f"Flood {state_info['flood_pressure']:.3f}"
-        f"->{next_state_info['flood_pressure']:.3f} | "
+        f"New MAC Rate {state_info['new_mac_rate']:.3f}"
+        f"->{next_state_info['new_mac_rate']:.3f} | "
         f"Age {state_info['avg_age']:.3f}"
         f"->{next_state_info['avg_age']:.3f}"
         )
@@ -91,8 +91,8 @@ class LiveEnv:
             old_fill=state_info["mac_fill"],
             new_fill=next_state_info["mac_fill"],
 
-            old_flood=state_info["flood_pressure"],
-            new_flood=next_state_info["flood_pressure"],
+            old_flood=state_info["new_mac_rate"],
+            new_flood=next_state_info["new_mac_rate"],
 
             old_age=state_info["avg_age"],
             new_age=next_state_info["avg_age"],
@@ -106,8 +106,8 @@ class LiveEnv:
             "mac_count":       len(next_state_info["mac_entries"]),
             "mac_fill":        next_state_info["mac_fill"],
             "fill_change":     fill_change,
-            "flood_pressure":  next_state_info["flood_pressure"],
-            "flood_change":    flood_change,
+            "new_mac_rate":  next_state_info["new_mac_rate"],
+            "mac_change":    mac_change,
             "avg_age":         next_state_info["avg_age"],
             "outcome":         outcome,
             "situation":       situation,

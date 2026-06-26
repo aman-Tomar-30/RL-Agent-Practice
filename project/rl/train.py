@@ -6,6 +6,12 @@ from project.rl.states import LiveStateEncoder
 from project.rl.agent import QAgent
 
 
+import redis
+import json
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..')))
+
+r = redis.Redis(host='localhost', port=6379, decode_responses=True)
+
 def save_final_qtable(agent, encoder, path='project/results/qtable/final_q_table.csv'):
     os.makedirs(os.path.dirname(path), exist_ok=True)
 
@@ -16,10 +22,10 @@ def save_final_qtable(agent, encoder, path='project/results/qtable/final_q_table
         writer.writerow([
             'State_Index',
             'Mac_Bin',
-            'Flood_Bin',
+            'New_MAC_Bin',
             'Age_Bin',
             'Mac_Range',
-            'Flood_Range',
+            'New_MAC_Range',
             'Age_Range',
             'Q_EVICT',
             'Q_INC_AGE',
@@ -32,7 +38,7 @@ def save_final_qtable(agent, encoder, path='project/results/qtable/final_q_table
 
             # decode bucket tuple from flat index
             mac_bin   = state_idx // (bins * bins)
-            flood_bin = (state_idx % (bins * bins)) // bins
+            new_mac_bin = (state_idx % (bins * bins)) // bins
             age_bin   =  state_idx % bins
 
             q = agent.get_q_values(state_idx)
@@ -41,11 +47,11 @@ def save_final_qtable(agent, encoder, path='project/results/qtable/final_q_table
             writer.writerow([
                 state_idx,
                 mac_bin,
-                flood_bin,
+                new_mac_bin,
                 age_bin,
-                encoder.get_bin_name(mac_bin),
-                encoder.get_bin_name(flood_bin),
-                encoder.get_bin_name(age_bin),
+                encoder.get_mac_bin_name(mac_bin),
+                encoder.get_normal_bin_name(new_mac_bin),
+                encoder.get_normal_bin_name(age_bin),
                 round(q[0], 4),
                 round(q[1], 4),
                 round(q[2], 4),
@@ -60,7 +66,7 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
     # steps = 30
     
     env     = LiveEnv(switch=switch)
-    encoder = LiveStateEncoder(bins=8)
+    encoder = LiveStateEncoder(bins=5)
     agent   = QAgent(states=encoder.total_states(), actions=4)
 
     log_path = 'project/results/logs/live_step_log.csv'
@@ -80,7 +86,7 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
 
             'mac_fill',
             'MAC_Count',
-            'flood_pressure',
+            'new_mac_rate',
             'avg_age',
 
             'Situation',
@@ -164,7 +170,7 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
 
                     info['mac_fill'],
                     info['mac_count'],
-                    info['flood_pressure'],
+                    info['new_mac_rate'],
                     info['avg_age'],
 
                     info['situation'],
@@ -193,8 +199,8 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
                     old_state_info["mac_fill"],
                     next_state_info["mac_fill"],
 
-                    old_state_info["flood_pressure"],
-                    next_state_info["flood_pressure"],
+                    old_state_info["new_mac_rate"],
+                    next_state_info["new_mac_rate"],
 
                     old_state_info["avg_age"],
                     next_state_info["avg_age"]
@@ -211,7 +217,19 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
                         round(q_values[3], 4),
                     ]
                 )
-
+            
+            r.publish("rl_step_channel", json.dumps({
+                "episode": ep + 1,
+                "step": step + 1,
+                "mac_fill": float(info['mac_fill']),
+                "new_mac_rate": float(info['new_mac_rate']),
+                "avg_age": float(info['avg_age']),
+                "reward": float(reward),
+                "epsilon": float(agent.epsilon),
+                "action_name": info['action_name'],
+                "chosen_by": 'RANDOM' if is_random else 'GREEDY',
+                "outcome": info['outcome']
+            }))
 
             state_idx    = next_state_idx
             state_info   = next_state_info
@@ -226,8 +244,8 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
         
         # discounted return
         G = 0
-        for r in reversed(episode_rewards):
-            G = r + agent.gamma * G
+        for rew in reversed(episode_rewards):
+            G = rew + agent.gamma * G
         
         rewards_history.append(total_reward)
             
@@ -236,6 +254,13 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
         with open(episode_log_path, 'a', newline='') as f:   
             writer = csv.writer(f)
             writer.writerow([ep+1, round(G, 4), round(total_reward, 4), round(agent.epsilon, 4)])
+
+        r.publish("rl_episode_channel", json.dumps({
+            "episode": ep + 1,
+            "discounted_g": float(G),
+            "total_reward": float(total_reward),
+            "epsilon": float(agent.epsilon)
+        }))
 
         with open(qtable_path, 'w', newline='') as f:
             writer = csv.writer(f)
@@ -265,4 +290,7 @@ def run_live_training(switch='g0_s0', episodes=200, steps_per_ep=30):
     save_final_qtable(agent, encoder)
     return agent, encoder, rewards_history
 
+if __name__ == "__main__":
+    print("[TRAINING] Starting Reinforcement Learning Loop...")
+    run_live_training()
 

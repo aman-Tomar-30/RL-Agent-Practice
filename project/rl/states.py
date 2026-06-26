@@ -20,12 +20,12 @@ class LiveStateEncoder:
     def get_state_index(self, state_info):
 
         mac_bin = self.mac_binning(state_info["mac_fill"])
-        flood_bin = self.normal_binning(state_info["flood_pressure"])
+        new_mac_bin = self.normal_binning(state_info["new_mac_rate"])
         age_bin = self.normal_binning(state_info["avg_age"])
 
         state_index = (
             mac_bin * self.bins * self.bins
-            + flood_bin * self.bins
+            + new_mac_bin * self.bins
             + age_bin
         )
 
@@ -49,3 +49,12 @@ class LiveStateEncoder:
             start = i * self.interval
             end = 1.0 if i == self.bins - 1 else (i + 1) * self.interval
             print(f"Bucket {i} : {start:.2f} - {end:.2f}")
+    
+    def get_mac_bin_name(self, bin_index):
+        labels = ["< 0.5", "0.5 - 1.0", "1.0 - 1.5", "1.5 - 2.5", ">= 2.5"]
+        return labels[bin_index]
+
+    def get_normal_bin_name(self, bin_index):
+        start = bin_index * self.interval
+        end = 1.0 if bin_index == self.bins - 1 else (bin_index + 1) * self.interval
+        return f"{start:.2f} - {end:.2f}"

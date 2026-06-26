@@ -3,15 +3,15 @@ import random
 from project.rl.actions import ActionSpace
 
 class QAgent:
-    def __init__(self, states, actions=4, alpha=0.1, gamma=0.90):
+    def __init__(self, states, actions=4, alpha=0.1, gamma=0.95):
 
         # alpha = 0.1
         # gamma = 0.90
  
         self.alpha, self.gamma = alpha, gamma
         self.epsilon = 1.0
-        self.epsilon_min   = 0.01
-        self.epsilon_decay = 0.97
+        self.epsilon_min   = 0.05
+        self.epsilon_decay = 0.985
 
         # fill table with 0 
         self.q_table = np.zeros((states, actions))

@@ -4,7 +4,7 @@ from prometheus_client import start_http_server, Gauge
 
 # Define Prometheus Gauges matching train.py output format
 STEP_MAC_FILL = Gauge("rl_step_mac_fill", "MAC Table Fill Ratio per step")
-STEP_FLOOD_PRESSURE = Gauge("rl_step_flood_pressure", "Flood Pressure per step")
+STEP_NEW_MAC_RATE = Gauge("rl_step_new_mac_rate", "New MAC Rate per step")
 STEP_AVG_AGE = Gauge("rl_step_avg_age", "Average MAC Entry Age per step")
 STEP_REWARD = Gauge("rl_step_reward", "Reward obtained in the current step")
 STEP_TOTAL_EP_REWARD = Gauge("rl_step_total_ep_reward", "Running total reward inside current episode")
@@ -28,7 +28,7 @@ def export_buffer():
         
         # Update gauges with exact case-sensitive matching headers from train.py
         STEP_MAC_FILL.set(float(row["mac_fill"]))
-        STEP_FLOOD_PRESSURE.set(float(row["flood_pressure"]))
+        STEP_NEW_MAC_RATE.set(float(row["new_mac_rate"]))
         STEP_AVG_AGE.set(float(row["avg_age"]))
         STEP_REWARD.set(float(row["Reward"]))
         STEP_TOTAL_EP_REWARD.set(float(row["Total_Ep_Reward"]))
