@@ -2,23 +2,22 @@ global:
   scrape_interval: 1s
 
 scrape_configs:
-  - job_name: "ovs_fdb"
+  - job_name: "fdb_exporter"
     static_configs:
-      - targets:
-          - host.docker.internal:8000
-  
-  - job_name: "episode_exporter"
+      - targets: ["127.0.0.1:8000"]
 
+  - job_name: "episode_exporter"
     static_configs:
-      - targets:
-          - episode_exporter:8001
-    
+      - targets: ["127.0.0.1:8001"]
+
   - job_name: "steps_exporter"
     static_configs:
-      - targets:
-          - steps_exporter:8002
+      - targets: ["127.0.0.1:8002"]
 
   - job_name: "redis_mac"
     static_configs:
-      - targets:
-          - host.docker.internal:8003
+      - targets: ["127.0.0.1:8003"]
+
+  - job_name: "rl_telemetry_exporter"
+    static_configs:
+      - targets: ["127.0.0.1:8004"]

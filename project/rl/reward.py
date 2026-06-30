@@ -117,8 +117,8 @@ def get_reward(
 
 
     reward += (
-        7 * fill_reduction +
-        15 * new_mac_rate_reduction +
+        15 * fill_reduction +
+        5 * new_mac_rate_reduction +
         2 * age_reduction
     )
 

@@ -28,7 +28,7 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
@@ -47,6 +47,7 @@ elements:
       id: 1
       links: []
       title: Agent Action Distribution
+      transparent: true
       vizConfig:
         group: piechart
         kind: VizConfig
@@ -79,7 +80,7 @@ elements:
               hideZeros: false
               mode: single
               sort: none
-        version: 13.0.1+security-01
+        version: 13.0.2
   panel-10:
     kind: Panel
     spec:
@@ -92,12 +93,12 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
                     editorMode: code
-                    expr: count by (port) (ovs_fdb_entry_age)
+                    expr: count by(port) (mac_table_age)
                     instant: false
                     legendFormat: __auto
                     range: true
@@ -109,31 +110,15 @@ elements:
       id: 10
       links: []
       title: Port-Based MAC Distribution
+      transparent: true
       vizConfig:
-        group: barchart
+        group: bargauge
         kind: VizConfig
         spec:
           fieldConfig:
             defaults:
               color:
-                mode: palette-classic
-              custom:
-                axisBorderShow: false
-                axisCenteredZero: false
-                axisColorMode: text
-                axisLabel: ''
-                axisPlacement: auto
-                fillOpacity: 80
-                gradientMode: none
-                hideFrom:
-                  legend: false
-                  tooltip: false
-                  viz: false
-                lineWidth: 1
-                scaleDistribution:
-                  type: linear
-                thresholdsStyle:
-                  mode: 'off'
+                mode: thresholds
               thresholds:
                 mode: absolute
                 steps:
@@ -143,25 +128,26 @@ elements:
                     value: 80
             overrides: []
           options:
-            barRadius: 0
-            barWidth: 0.73
-            fullHighlight: false
-            groupWidth: 0.63
+            displayMode: gradient
             legend:
               calcs: []
               displayMode: list
               placement: bottom
-              showLegend: true
+              showLegend: false
+            maxVizHeight: 300
+            minVizHeight: 16
+            minVizWidth: 8
+            namePlacement: auto
             orientation: auto
-            showValue: auto
-            stacking: none
-            tooltip:
-              hideZeros: false
-              mode: single
-              sort: none
-            xTickLabelRotation: 0
-            xTickLabelSpacing: 100
-        version: 13.0.1+security-01
+            reduceOptions:
+              calcs:
+                - lastNotNull
+              fields: ''
+              values: false
+            showUnfilled: true
+            sizing: auto
+            valueMode: color
+        version: 13.0.2
   panel-11:
     kind: Panel
     spec:
@@ -174,7 +160,7 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
@@ -208,11 +194,16 @@ elements:
                     job: true
                   includeByName: {}
                   indexByName: {}
-                  renameByName: {}
+                  renameByName:
+                    Value: Age
+                    mac: MAC
+                    port: Port
+                    vlan: VLAN id
       description: ''
       id: 11
       links: []
       title: OVS Live MAC Table
+      transparent: true
       vizConfig:
         group: table
         kind: VizConfig
@@ -222,7 +213,7 @@ elements:
               color:
                 mode: thresholds
               custom:
-                align: auto
+                align: center
                 cellOptions:
                   type: auto
                 footer:
@@ -240,9 +231,9 @@ elements:
             cellHeight: sm
             showHeader: true
             sortBy:
-              - desc: false
-                displayName: Value
-        version: 13.0.1+security-01
+              - desc: true
+                displayName: Age
+        version: 13.0.2
   panel-12:
     kind: Panel
     spec:
@@ -255,7 +246,7 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
@@ -281,11 +272,16 @@ elements:
                     job: true
                   includeByName: {}
                   indexByName: {}
-                  renameByName: {}
+                  renameByName:
+                    Value: Age
+                    mac: MAC
+                    port: Port
+                    vlan: VLAN id
       description: ''
       id: 12
       links: []
       title: Redis Global MAC Table
+      transparent: true
       vizConfig:
         group: table
         kind: VizConfig
@@ -315,11 +311,25 @@ elements:
                 properties:
                   - id: custom.width
                     value: 250
+              - matcher:
+                  id: byName
+                  options: VLAN id
+                properties:
+                  - id: custom.width
+                    value: 164
+              - matcher:
+                  id: byName
+                  options: Port
+                properties:
+                  - id: custom.width
+                    value: 191
           options:
             cellHeight: sm
             showHeader: true
-            sortBy: []
-        version: 13.0.1+security-01
+            sortBy:
+              - desc: true
+                displayName: Age
+        version: 13.0.2
   panel-2:
     kind: Panel
     spec:
@@ -332,7 +342,7 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
@@ -349,6 +359,7 @@ elements:
       id: 2
       links: []
       title: Epsilon Decay
+      transparent: true
       vizConfig:
         group: timeseries
         kind: VizConfig
@@ -407,7 +418,7 @@ elements:
               hideZeros: false
               mode: single
               sort: none
-        version: 13.0.1+security-01
+        version: 13.0.2
   panel-3:
     kind: Panel
     spec:
@@ -420,7 +431,7 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
@@ -437,6 +448,7 @@ elements:
       id: 3
       links: []
       title: Episode Rewards
+      transparent: true
       vizConfig:
         group: timeseries
         kind: VizConfig
@@ -495,7 +507,7 @@ elements:
               hideZeros: false
               mode: single
               sort: none
-        version: 13.0.1+security-01
+        version: 13.0.2
   panel-4:
     kind: Panel
     spec:
@@ -508,7 +520,7 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
@@ -527,6 +539,7 @@ elements:
       id: 4
       links: []
       title: Policy Mode Distribution
+      transparent: true
       vizConfig:
         group: piechart
         kind: VizConfig
@@ -559,7 +572,7 @@ elements:
               hideZeros: false
               mode: single
               sort: none
-        version: 13.0.1+security-01
+        version: 13.0.2
   panel-5:
     kind: Panel
     spec:
@@ -572,7 +585,7 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
@@ -589,6 +602,7 @@ elements:
       id: 5
       links: []
       title: MAC Table Fill Ratio
+      transparent: true
       vizConfig:
         group: timeseries
         kind: VizConfig
@@ -650,7 +664,7 @@ elements:
               hideZeros: false
               mode: single
               sort: none
-        version: 13.0.1+security-01
+        version: 13.0.2
   panel-6:
     kind: Panel
     spec:
@@ -663,7 +677,7 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
@@ -688,6 +702,7 @@ elements:
       id: 6
       links: []
       title: Step Reward
+      transparent: true
       vizConfig:
         group: timeseries
         kind: VizConfig
@@ -746,7 +761,7 @@ elements:
               hideZeros: false
               mode: single
               sort: none
-        version: 13.0.1+security-01
+        version: 13.0.2
   panel-7:
     kind: Panel
     spec:
@@ -759,12 +774,12 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
                     editorMode: code
-                    expr: rl_flood_pressure
+                    expr: rl_new_mac_rate
                     instant: false
                     legendFormat: Flood Intensity
                     range: true
@@ -775,7 +790,8 @@ elements:
       description: ''
       id: 7
       links: []
-      title: Flood Pressure
+      title: New MAC Rate
+      transparent: true
       vizConfig:
         group: timeseries
         kind: VizConfig
@@ -834,7 +850,7 @@ elements:
               hideZeros: false
               mode: single
               sort: none
-        version: 13.0.1+security-01
+        version: 13.0.2
   panel-8:
     kind: Panel
     spec:
@@ -847,7 +863,7 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
@@ -864,6 +880,7 @@ elements:
       id: 8
       links: []
       title: MAC Aging Timer
+      transparent: true
       vizConfig:
         group: timeseries
         kind: VizConfig
@@ -922,7 +939,7 @@ elements:
               hideZeros: false
               mode: single
               sort: none
-        version: 13.0.1+security-01
+        version: 13.0.2
   panel-9:
     kind: Panel
     spec:
@@ -935,7 +952,7 @@ elements:
                 hidden: false
                 query:
                   datasource:
-                    name: ffjhr862wh5vke
+                    name: ffoioke0jlo1sc
                   group: prometheus
                   kind: DataQuery
                   spec:
@@ -954,6 +971,7 @@ elements:
       id: 9
       links: []
       title: Total Live FDB Entries
+      transparent: true
       vizConfig:
         group: gauge
         kind: VizConfig
@@ -994,7 +1012,7 @@ elements:
             sizing: auto
             sparkline: true
             textMode: auto
-        version: 13.0.1+security-01
+        version: 13.0.2
 layout:
   kind: GridLayout
   spec:
@@ -1094,7 +1112,7 @@ layout:
           element:
             kind: ElementReference
             name: panel-11
-          height: 8
+          height: 18
           width: 12
           x: 0
           'y': 40
@@ -1103,8 +1121,8 @@ layout:
           element:
             kind: ElementReference
             name: panel-12
-          height: 8
-          width: 12
+          height: 18
+          width: 11
           x: 12
           'y': 40
 links: []
@@ -1117,7 +1135,7 @@ preferences:
 preload: false
 tags: []
 timeSettings:
-  autoRefresh: ''
+  autoRefresh: 10s
   autoRefreshIntervals:
     - 5s
     - 10s
@@ -1130,9 +1148,9 @@ timeSettings:
     - 2h
     - 1d
   fiscalYearStartMonth: 0
-  from: now-15m
+  from: now-5m
   hideTimepicker: false
   timezone: browser
   to: now
-title: FInal Presentation Dashboard
+title: Final Dashboard
 variables: []
